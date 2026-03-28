@@ -1,0 +1,17 @@
+[features]
+seeds = false
+skip-lint = false
+
+[programs.localnet]
+rwa_core = "9ZQBB6PWDiBeHbhKZBEyC5wr6C23ohFwrMAw3ugstG8A"
+compliance_hook = "D9yfcXGzFWLtyfKXapXxKcBFfDwGJfW7i717bM5YrnSh"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "npx ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

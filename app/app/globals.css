@@ -1,0 +1,87 @@
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  .theme {
+    --font-heading: var(--font-sans);
+    --font-sans: var(--font-sans);
+  }
+  :root {
+    --background: #0B0E14;
+    --foreground: #F1F5F9;
+    --card: #111827;
+    --card-foreground: #F1F5F9;
+    --popover: #111827;
+    --popover-foreground: #F1F5F9;
+    --primary: #C8A04A;
+    --primary-foreground: #0B0E14;
+    --secondary: #1E293B;
+    --secondary-foreground: #F1F5F9;
+    --muted: #1E293B;
+    --muted-foreground: #94A3B8;
+    --accent: #1E293B;
+    --accent-foreground: #F1F5F9;
+    --destructive: #EF4444;
+    --border: #1E293B;
+    --input: #1E293B;
+    --ring: #C8A04A;
+    --radius: 0.5rem;
+    --sidebar: #111827;
+    --sidebar-foreground: #F1F5F9;
+    --sidebar-primary: #C8A04A;
+    --sidebar-primary-foreground: #0B0E14;
+    --sidebar-accent: #1E293B;
+    --sidebar-accent-foreground: #F1F5F9;
+    --sidebar-border: #1E293B;
+    --sidebar-ring: #C8A04A;
+    --chart-1: #C8A04A;
+    --chart-2: #10B981;
+    --chart-3: #3B82F6;
+    --chart-4: #F59E0B;
+    --chart-5: #EF4444;
+  }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 13px;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Solana wallet adapter overrides */
+.wallet-adapter-button {
+  background-color: #C8A04A !important;
+  color: #0B0E14 !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  border-radius: 0.5rem !important;
+  height: 36px !important;
+}
+.wallet-adapter-button:hover {
+  background-color: #b8903a !important;
+}
+.wallet-adapter-modal-wrapper {
+  background-color: #111827 !important;
+}
+.wallet-adapter-modal-title {
+  color: #F1F5F9 !important;
+}
+.wallet-adapter-modal-list li {
+  background-color: #1E293B !important;
+}
+.wallet-adapter-modal-button-close {
+  background-color: #1E293B !important;
+}

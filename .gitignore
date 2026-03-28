@@ -1,0 +1,11 @@
+target/
+node_modules/
+.anchor/
+test-ledger/
+.DS_Store
+*.so
+*.env
+notes/
+design-system/
+docs/
+demo-docs/
