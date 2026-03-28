@@ -52,7 +52,6 @@ import {
   formatCurrency,
   formatNumber,
   truncateAddress,
-  DEMO_ASSET,
   COMPLIANCE_HOOK_PROGRAM_ID,
   RWA_CORE_PROGRAM_ID,
 } from "@/lib/constants";
@@ -135,86 +134,34 @@ export default function AdminPage() {
         program.account as any
       ).assetConfig.all();
 
-      if (allAssets.length > 0) {
-        const parsed: AssetInfo[] = allAssets
-          .filter(
-            (acc: any) =>
-              acc.account.authority.toBase58() === publicKey.toBase58()
-          )
-          .map((acc: any) => ({
-            mint: acc.account.mint.toBase58(),
-            name: acc.account.name,
-            symbol: acc.account.symbol,
-            authority: acc.account.authority.toBase58(),
-            totalSupply: acc.account.totalSupply.toNumber(),
-            maxSupply: acc.account.maxSupply.toNumber(),
-            valuationUsd: acc.account.valuationUsd.toNumber(),
-          }));
+      const parsed: AssetInfo[] = allAssets
+        .filter(
+          (acc: any) =>
+            acc.account.authority.toBase58() === publicKey.toBase58()
+        )
+        .map((acc: any) => ({
+          mint: acc.account.mint.toBase58(),
+          name: acc.account.name,
+          symbol: acc.account.symbol,
+          authority: acc.account.authority.toBase58(),
+          totalSupply: acc.account.totalSupply.toNumber(),
+          maxSupply: acc.account.maxSupply.toNumber(),
+          valuationUsd: acc.account.valuationUsd.toNumber(),
+        }));
 
-        setAssets(parsed);
-        setIsAdmin(parsed.length > 0);
-        if (parsed.length > 0) {
-          setSelectedAsset(parsed[0]);
-          await loadInvestors(
-            parsed[0].mint,
-            complianceProgram
-          );
-        }
-      } else {
-        // Demo mode
-        setIsAdmin(true);
-        setAssets([
-          {
-            mint: "demo",
-            name: DEMO_ASSET.name,
-            symbol: DEMO_ASSET.symbol,
-            authority: publicKey.toBase58(),
-            totalSupply: 0,
-            maxSupply: DEMO_ASSET.maxSupply,
-            valuationUsd: DEMO_ASSET.valuationUsd,
-          },
-        ]);
-        setSelectedAsset({
-          mint: "demo",
-          name: DEMO_ASSET.name,
-          symbol: DEMO_ASSET.symbol,
-          authority: publicKey.toBase58(),
-          totalSupply: 0,
-          maxSupply: DEMO_ASSET.maxSupply,
-          valuationUsd: DEMO_ASSET.valuationUsd,
-        });
-        setInvestors([
-          {
-            wallet: "7xKX...demo",
-            isKyc: true,
-            isAuthority: false,
-            createdAt: Date.now() / 1000,
-            recordPda: "demo",
-          },
-          {
-            wallet: "9aBc...demo",
-            isKyc: false,
-            isAuthority: false,
-            createdAt: Date.now() / 1000,
-            recordPda: "demo2",
-          },
-        ]);
+      setAssets(parsed);
+      setIsAdmin(parsed.length > 0);
+      if (parsed.length > 0) {
+        setSelectedAsset(parsed[0]);
+        await loadInvestors(
+          parsed[0].mint,
+          complianceProgram
+        );
       }
     } catch (e) {
       console.error("Admin load error:", e);
-      // Demo fallback
-      setIsAdmin(true);
-      const demoAsset = {
-        mint: "demo",
-        name: DEMO_ASSET.name,
-        symbol: DEMO_ASSET.symbol,
-        authority: publicKey?.toBase58() || "",
-        totalSupply: 0,
-        maxSupply: DEMO_ASSET.maxSupply,
-        valuationUsd: DEMO_ASSET.valuationUsd,
-      };
-      setAssets([demoAsset]);
-      setSelectedAsset(demoAsset);
+      setAssets([]);
+      setIsAdmin(false);
     }
     setLoading(false);
   }

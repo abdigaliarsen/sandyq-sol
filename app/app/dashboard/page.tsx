@@ -43,7 +43,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  DEMO_ASSET,
   formatCurrency,
   formatNumber,
   truncateAddress,
@@ -122,8 +121,8 @@ export default function DashboardPage() {
         rwaCoreProgram.account as any
       ).assetConfig.all();
 
+      // check KYC for first asset
       if (allAssets.length > 0) {
-        // check KYC for first asset
         const firstMint = allAssets[0].account.mint;
         const [investorPda] = getInvestorRecordPda(firstMint, publicKey);
         try {
@@ -134,91 +133,67 @@ export default function DashboardPage() {
         } catch {
           setKycStatus("not_registered");
         }
+      } else {
+        setKycStatus("not_registered");
+      }
 
-        // check holdings & yield for each asset
-        const holdingsArr: HoldingInfo[] = [];
-        let totalUnclaimed = 0;
-        let totalEarnedVal = 0;
+      // check holdings & yield for each asset
+      const holdingsArr: HoldingInfo[] = [];
+      let totalUnclaimed = 0;
+      let totalEarnedVal = 0;
 
-        for (const acc of allAssets) {
-          const config = acc.account;
-          const mint = config.mint;
-          const pricePerToken =
-            config.maxSupply.toNumber() > 0
-              ? config.valuationUsd.toNumber() / config.maxSupply.toNumber()
-              : 0;
+      for (const acc of allAssets) {
+        const config = acc.account;
+        const mint = config.mint;
+        const pricePerToken =
+          config.maxSupply.toNumber() > 0
+            ? config.valuationUsd.toNumber() / config.maxSupply.toNumber()
+            : 0;
 
-          try {
-            const ata = getAssociatedTokenAddressSync(
-              mint,
-              publicKey,
-              false,
-              TOKEN_2022_PROGRAM_ID
-            );
-            const tokenAcc = await connection.getTokenAccountBalance(ata);
-            const balance = Number(tokenAcc.value.amount);
-            if (balance > 0) {
-              holdingsArr.push({
-                mint: mint.toBase58(),
-                name: config.name,
-                symbol: config.symbol,
-                balance,
-                valuationUsd: balance * pricePerToken,
-                pricePerToken,
-              });
-              if (!transferMint) setTransferMint(mint.toBase58());
-            }
-          } catch {
-            // no token account
+        try {
+          const ata = getAssociatedTokenAddressSync(
+            mint,
+            publicKey,
+            false,
+            TOKEN_2022_PROGRAM_ID
+          );
+          const tokenAcc = await connection.getTokenAccountBalance(ata);
+          const balance = Number(tokenAcc.value.amount);
+          if (balance > 0) {
+            holdingsArr.push({
+              mint: mint.toBase58(),
+              name: config.name,
+              symbol: config.symbol,
+              balance,
+              valuationUsd: balance * pricePerToken,
+              pricePerToken,
+            });
+            if (!transferMint) setTransferMint(mint.toBase58());
           }
-
-          // check yield
-          try {
-            const [yieldPda] = getInvestorYieldPda(mint, publicKey);
-            const yieldData = await (
-              rwaCoreProgram.account as any
-            ).investorYield.fetch(yieldPda);
-            totalUnclaimed += yieldData.rewardsEarned.toNumber();
-          } catch {
-            // no yield account
-          }
+        } catch {
+          // no token account
         }
 
-        setHoldings(holdingsArr);
-        setUnclaimedYield(totalUnclaimed);
-        setTotalEarned(totalEarnedVal);
-      } else {
-        // Demo fallback
-        setKycStatus("verified");
-        setHoldings([
-          {
-            mint: "demo",
-            name: DEMO_ASSET.name,
-            symbol: DEMO_ASSET.symbol,
-            balance: 500,
-            valuationUsd: 500 * (DEMO_ASSET.valuationUsd / DEMO_ASSET.maxSupply),
-            pricePerToken: DEMO_ASSET.valuationUsd / DEMO_ASSET.maxSupply,
-          },
-        ]);
-        setUnclaimedYield(2_600);
-        setTransferMint("demo");
+        // check yield
+        try {
+          const [yieldPda] = getInvestorYieldPda(mint, publicKey);
+          const yieldData = await (
+            rwaCoreProgram.account as any
+          ).investorYield.fetch(yieldPda);
+          totalUnclaimed += yieldData.rewardsEarned.toNumber();
+        } catch {
+          // no yield account
+        }
       }
+
+      setHoldings(holdingsArr);
+      setUnclaimedYield(totalUnclaimed);
+      setTotalEarned(totalEarnedVal);
     } catch (e) {
       console.error("Dashboard load error:", e);
-      // Demo fallback
-      setKycStatus("verified");
-      setHoldings([
-        {
-          mint: "demo",
-          name: DEMO_ASSET.name,
-          symbol: DEMO_ASSET.symbol,
-          balance: 500,
-          valuationUsd: 500 * (DEMO_ASSET.valuationUsd / DEMO_ASSET.maxSupply),
-          pricePerToken: DEMO_ASSET.valuationUsd / DEMO_ASSET.maxSupply,
-        },
-      ]);
-      setUnclaimedYield(2_600);
-      setTransferMint("demo");
+      setKycStatus("not_registered");
+      setHoldings([]);
+      setUnclaimedYield(0);
     }
     setLoading(false);
   }

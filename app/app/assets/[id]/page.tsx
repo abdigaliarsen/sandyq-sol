@@ -33,7 +33,6 @@ import {
   Users,
 } from "lucide-react";
 import {
-  DEMO_ASSET,
   formatCurrency,
   formatNumber,
   truncateAddress,
@@ -77,51 +76,6 @@ export default function AssetDetailPage() {
 
   async function loadAsset() {
     setLoading(true);
-    if (id === "demo") {
-      setAsset({
-        name: DEMO_ASSET.name,
-        symbol: DEMO_ASSET.symbol,
-        assetType: DEMO_ASSET.assetType,
-        jurisdiction: DEMO_ASSET.jurisdiction,
-        valuationUsd: DEMO_ASSET.valuationUsd,
-        maxSupply: DEMO_ASSET.maxSupply,
-        totalSupply: 0,
-        isActive: true,
-        authority: "Demo..Auth",
-        mint: "demo",
-        attestationCount: 3,
-        createdAt: Date.now() / 1000,
-      });
-      setAttestations([
-        {
-          pubkey: "att1",
-          documentName: "Title Deed - Nurly Tau Block 1B",
-          documentHash:
-            "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-          documentUri: "https://ipfs.io/ipfs/QmDemo1",
-          timestamp: Date.now() / 1000 - 86400 * 30,
-        },
-        {
-          pubkey: "att2",
-          documentName: "Appraisal Report 2025",
-          documentHash:
-            "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
-          documentUri: "https://ipfs.io/ipfs/QmDemo2",
-          timestamp: Date.now() / 1000 - 86400 * 15,
-        },
-        {
-          pubkey: "att3",
-          documentName: "Lease Agreement - TechBridge LLP",
-          documentHash:
-            "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
-          documentUri: "https://ipfs.io/ipfs/QmDemo3",
-          timestamp: Date.now() / 1000 - 86400 * 7,
-        },
-      ]);
-      setLoading(false);
-      return;
-    }
-
     try {
       const mint = new PublicKey(id);
       const provider = new AnchorProvider(
@@ -261,7 +215,7 @@ export default function AssetDetailPage() {
                 <p className="text-xs text-[#94A3B8]">Address</p>
                 <p className="text-sm text-[#F1F5F9] flex items-center gap-1">
                   <MapPin className="h-3 w-3 text-[#94A3B8]" />
-                  {id === "demo" ? DEMO_ASSET.address : asset.jurisdiction}
+                  {asset.jurisdiction}
                 </p>
               </div>
               <div>
@@ -281,28 +235,6 @@ export default function AssetDetailPage() {
                   {asset.jurisdiction}
                 </p>
               </div>
-              {id === "demo" && (
-                <>
-                  <div>
-                    <p className="text-xs text-[#94A3B8]">Area</p>
-                    <p className="text-sm text-[#F1F5F9]">
-                      {DEMO_ASSET.area}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[#94A3B8]">Tenant</p>
-                    <p className="text-sm text-[#F1F5F9]">
-                      {DEMO_ASSET.tenant}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[#94A3B8]">Annual Yield</p>
-                    <p className="text-sm font-mono text-success">
-                      {DEMO_ASSET.yieldPct}%
-                    </p>
-                  </div>
-                </>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -349,23 +281,19 @@ export default function AssetDetailPage() {
                 </span>
               </div>
             </div>
-            {asset.mint !== "demo" && (
-              <>
-                <Separator className="bg-border" />
-                <div>
-                  <p className="text-xs text-[#94A3B8]">Mint Address</p>
-                  <p className="text-xs font-mono text-[#94A3B8] break-all">
-                    {asset.mint}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-[#94A3B8]">Authority</p>
-                  <p className="text-xs font-mono text-[#94A3B8] break-all">
-                    {asset.authority}
-                  </p>
-                </div>
-              </>
-            )}
+            <Separator className="bg-border" />
+            <div>
+              <p className="text-xs text-[#94A3B8]">Mint Address</p>
+              <p className="text-xs font-mono text-[#94A3B8] break-all">
+                {asset.mint}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-[#94A3B8]">Authority</p>
+              <p className="text-xs font-mono text-[#94A3B8] break-all">
+                {asset.authority}
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
