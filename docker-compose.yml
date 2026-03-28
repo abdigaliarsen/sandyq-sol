@@ -1,0 +1,27 @@
+services:
+  frontend:
+    build: ./app
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
+      - NEXT_PUBLIC_RWA_CORE_PROGRAM_ID=9ZQBB6PWDiBeHbhKZBEyC5wr6C23ohFwrMAw3ugstG8A
+      - NEXT_PUBLIC_COMPLIANCE_HOOK_PROGRAM_ID=D9yfcXGzFWLtyfKXapXxKcBFfDwGJfW7i717bM5YrnSh
+      - NEXT_PUBLIC_IPFS_GATEWAY=http://localhost:8080
+    restart: unless-stopped
+    depends_on:
+      - ipfs
+
+  ipfs:
+    image: ipfs/kubo:latest
+    ports:
+      - "5001:5001"
+      - "8080:8080"
+    volumes:
+      - ipfs_data:/data/ipfs
+    environment:
+      - IPFS_PROFILE=server
+    restart: unless-stopped
+
+volumes:
+  ipfs_data:
