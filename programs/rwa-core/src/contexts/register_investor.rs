@@ -25,7 +25,8 @@ pub struct RegisterInvestor<'info> {
     /// CHECK: mint for the asset
     pub mint: UncheckedAccount<'info>,
 
-    /// CHECK: compliance hook program
+    /// CHECK: compliance hook program, validated by address
+    #[account(address = COMPLIANCE_HOOK_PROGRAM_ID.parse::<Pubkey>().unwrap())]
     pub compliance_hook_program: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,

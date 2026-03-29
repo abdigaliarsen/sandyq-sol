@@ -227,33 +227,6 @@ export type RwaCore = {
           "writable": true
         },
         {
-          "name": "vaultAuthority",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  121,
-                  105,
-                  101,
-                  108,
-                  100,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "rwaMint"
-              }
-            ]
-          }
-        },
-        {
           "name": "tokenProgram"
         },
         {
@@ -1118,6 +1091,11 @@ export type RwaCore = {
       "code": 6012,
       "name": "transferNotAllowed",
       "msg": "Transfer not allowed by compliance"
+    },
+    {
+      "code": 6013,
+      "name": "arithmeticOverflow",
+      "msg": "Arithmetic overflow"
     }
   ],
   "types": [

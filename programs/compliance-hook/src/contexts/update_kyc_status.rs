@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::state::InvestorRecord;
+use crate::errors::ComplianceError;
 
 #[derive(Accounts)]
 pub struct UpdateKycStatus<'info> {
@@ -9,6 +10,7 @@ pub struct UpdateKycStatus<'info> {
         mut,
         seeds = [b"investor", mint.key().as_ref(), investor_record.wallet.as_ref()],
         bump = investor_record.bump,
+        constraint = investor_record.authority == authority.key() @ ComplianceError::Unauthorized,
     )]
     pub investor_record: Account<'info, InvestorRecord>,
 

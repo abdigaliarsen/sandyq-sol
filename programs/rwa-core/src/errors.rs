@@ -28,4 +28,6 @@ pub enum RwaError {
     InvalidDocumentHash,
     #[msg("Transfer not allowed by compliance")]
     TransferNotAllowed,
+    #[msg("Arithmetic overflow")]
+    ArithmeticOverflow,
 }

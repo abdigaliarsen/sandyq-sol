@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, Transaction, ComputeBudgetProgram } from "@solana/web3.js";
 import { AnchorProvider, BN } from "@coral-xyz/anchor";
@@ -42,6 +42,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 import {
   formatCurrency,
   formatNumber,
@@ -51,10 +52,8 @@ import {
 import {
   getRwaCoreProgram,
   getComplianceHookProgram,
-  getAssetConfigPda,
   getInvestorRecordPda,
   getInvestorYieldPda,
-  getYieldVaultPda,
   getExtraAccountMetaListPda,
   parseAnchorError,
 } from "@/lib/programs";
@@ -80,6 +79,7 @@ export default function DashboardPage() {
   const { connection } = useConnection();
   const wallet = useWallet();
   const { publicKey, sendTransaction } = wallet;
+  const { t } = useTranslation();
 
   const [kycStatus, setKycStatus] = useState<
     "verified" | "pending" | "not_registered" | null
@@ -181,6 +181,7 @@ export default function DashboardPage() {
             rwaCoreProgram.account as any
           ).investorYield.fetch(yieldPda);
           totalUnclaimed += yieldData.rewardsEarned.toNumber();
+          totalEarnedVal += yieldData.rewardsEarned.toNumber();
         } catch {
           // no yield account
         }
@@ -217,7 +218,7 @@ export default function DashboardPage() {
         })
         .rpc();
 
-      toast.success("Yield claimed successfully!", {
+      toast.success(t("dashboard.toast.yieldClaimed"), {
         description: `TX: ${truncateAddress(tx, 8)}`,
       });
       loadDashboard();
@@ -242,7 +243,7 @@ export default function DashboardPage() {
       const recipient = new PublicKey(transferRecipient);
       const amount = Number(transferAmount);
       if (isNaN(amount) || amount <= 0) {
-        toast.error("Invalid amount");
+        toast.error(t("dashboard.toast.invalidAmount"));
         setTransferring(false);
         return;
       }
@@ -296,7 +297,7 @@ export default function DashboardPage() {
       const sig = await sendTransaction(tx, connection);
       await connection.confirmTransaction(sig, "confirmed");
 
-      toast.success("Transfer successful!", {
+      toast.success(t("dashboard.toast.transferSuccess"), {
         description: `TX: ${truncateAddress(sig, 8)}`,
       });
       setTransferRecipient("");
@@ -311,12 +312,12 @@ export default function DashboardPage() {
   if (!publicKey) {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
-        <Wallet className="h-12 w-12 text-[#94A3B8]" />
-        <h2 className="text-xl font-semibold text-[#F1F5F9]">
-          Connect Your Wallet
+        <Wallet className="h-12 w-12 text-muted-foreground" />
+        <h2 className="text-xl font-semibold text-foreground">
+          {t("dashboard.connectWallet")}
         </h2>
-        <p className="text-sm text-[#94A3B8]">
-          Connect a Solana wallet to view your dashboard
+        <p className="text-sm text-muted-foreground">
+          {t("dashboard.connectWalletDesc")}
         </p>
         <WalletMultiButton />
       </div>
@@ -326,12 +327,12 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-16 bg-[#111827] rounded-xl animate-pulse" />
+        <div className="h-16 bg-card rounded-xl animate-pulse" />
         <div className="grid grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-24 bg-[#111827] rounded-xl animate-pulse"
+              className="h-24 bg-card rounded-xl animate-pulse"
             />
           ))}
         </div>
@@ -346,8 +347,8 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-[#F1F5F9]">
-        Investor Dashboard
+      <h1 className="text-2xl font-bold text-foreground">
+        {t("dashboard.title")}
       </h1>
 
       {/* KYC Banner */}
@@ -356,10 +357,10 @@ export default function DashboardPage() {
           <ShieldCheck className="h-5 w-5 text-success" />
           <div>
             <p className="text-sm font-medium text-success">
-              KYC Verified
+              {t("dashboard.kyc.verified")}
             </p>
-            <p className="text-xs text-[#94A3B8]">
-              You are approved to trade and receive yield distributions
+            <p className="text-xs text-muted-foreground">
+              {t("dashboard.kyc.verifiedDesc")}
             </p>
           </div>
         </div>
@@ -369,11 +370,10 @@ export default function DashboardPage() {
           <ShieldAlert className="h-5 w-5 text-warning" />
           <div>
             <p className="text-sm font-medium text-warning">
-              KYC Pending
+              {t("dashboard.kyc.pending")}
             </p>
-            <p className="text-xs text-[#94A3B8]">
-              Your account is registered but KYC is not yet approved.
-              Contact the asset administrator.
+            <p className="text-xs text-muted-foreground">
+              {t("dashboard.kyc.pendingDesc")}
             </p>
           </div>
         </div>
@@ -383,11 +383,10 @@ export default function DashboardPage() {
           <ShieldX className="h-5 w-5 text-danger" />
           <div>
             <p className="text-sm font-medium text-danger">
-              Not Registered
+              {t("dashboard.kyc.notRegistered")}
             </p>
-            <p className="text-xs text-[#94A3B8]">
-              Your wallet is not registered as an investor. Ask the asset
-              administrator to register you.
+            <p className="text-xs text-muted-foreground">
+              {t("dashboard.kyc.notRegisteredDesc")}
             </p>
           </div>
         </div>
@@ -395,41 +394,41 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-[#111827] border-border">
+        <Card className="bg-card border-border">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-9 w-9 rounded-md bg-gold/10 flex items-center justify-center">
               <Wallet className="h-4 w-4 text-gold" />
             </div>
             <div>
-              <p className="text-xs text-[#94A3B8]">My Holdings</p>
-              <p className="text-xl font-semibold text-[#F1F5F9]">
+              <p className="text-xs text-muted-foreground">{t("dashboard.myHoldings")}</p>
+              <p className="text-xl font-semibold text-foreground">
                 {formatCurrency(totalHoldingsValue)}
               </p>
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-[#111827] border-border">
+        <Card className="bg-card border-border">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-9 w-9 rounded-md bg-success/10 flex items-center justify-center">
               <TrendingUp className="h-4 w-4 text-success" />
             </div>
             <div>
-              <p className="text-xs text-[#94A3B8]">Unclaimed Yield</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.unclaimedYield")}</p>
               <p className="text-xl font-semibold text-success">
                 {formatCurrency(unclaimedYield / 1_000_000)}{" "}
-                <span className="text-xs text-[#94A3B8]">USDC</span>
+                <span className="text-xs text-muted-foreground">USDC</span>
               </p>
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-[#111827] border-border">
+        <Card className="bg-card border-border">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-9 w-9 rounded-md bg-gold/10 flex items-center justify-center">
               <DollarSign className="h-4 w-4 text-gold" />
             </div>
             <div>
-              <p className="text-xs text-[#94A3B8]">Total Earned</p>
-              <p className="text-xl font-semibold text-[#F1F5F9]">
+              <p className="text-xs text-muted-foreground">{t("dashboard.totalEarned")}</p>
+              <p className="text-xl font-semibold text-foreground">
                 {formatCurrency(totalEarned / 1_000_000)}
               </p>
             </div>
@@ -438,10 +437,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Holdings Table */}
-      <Card className="bg-[#111827] border-border">
+      <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base text-[#F1F5F9]">
-            Holdings
+          <CardTitle className="text-base text-foreground">
+            {t("dashboard.holdings")}
           </CardTitle>
           <Button
             variant="outline"
@@ -455,29 +454,29 @@ export default function DashboardPage() {
             ) : (
               <Download className="h-3 w-3 mr-1" />
             )}
-            Claim Yield
+            {t("dashboard.claimYield")}
           </Button>
         </CardHeader>
         <CardContent>
           {holdings.length === 0 ? (
-            <p className="text-sm text-[#94A3B8] py-4 text-center">
-              You don&apos;t hold any RWA tokens yet
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              {t("dashboard.noHoldings")}
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="text-[#94A3B8] text-xs">
-                    Asset
+                  <TableHead className="text-muted-foreground text-xs">
+                    {t("dashboard.table.asset")}
                   </TableHead>
-                  <TableHead className="text-[#94A3B8] text-xs">
-                    Symbol
+                  <TableHead className="text-muted-foreground text-xs">
+                    {t("dashboard.table.symbol")}
                   </TableHead>
-                  <TableHead className="text-[#94A3B8] text-xs text-right">
-                    Tokens
+                  <TableHead className="text-muted-foreground text-xs text-right">
+                    {t("dashboard.table.tokens")}
                   </TableHead>
-                  <TableHead className="text-[#94A3B8] text-xs text-right">
-                    Value
+                  <TableHead className="text-muted-foreground text-xs text-right">
+                    {t("dashboard.table.value")}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -485,9 +484,9 @@ export default function DashboardPage() {
                 {holdings.map((h) => (
                   <TableRow
                     key={h.mint}
-                    className="border-border hover:bg-[#1E293B]"
+                    className="border-border hover:bg-secondary"
                   >
-                    <TableCell className="text-sm text-[#F1F5F9]">
+                    <TableCell className="text-sm text-foreground">
                       {h.name}
                     </TableCell>
                     <TableCell>
@@ -498,10 +497,10 @@ export default function DashboardPage() {
                         {h.symbol}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm text-[#F1F5F9]">
+                    <TableCell className="text-right font-mono text-sm text-foreground">
                       {formatNumber(h.balance)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm text-[#F1F5F9]">
+                    <TableCell className="text-right font-mono text-sm text-foreground">
                       {formatCurrency(h.valuationUsd)}
                     </TableCell>
                   </TableRow>
@@ -513,42 +512,42 @@ export default function DashboardPage() {
       </Card>
 
       {/* Transfer Form */}
-      <Card className="bg-[#111827] border-border">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-base text-[#F1F5F9] flex items-center gap-2">
+          <CardTitle className="text-base text-foreground flex items-center gap-2">
             <Send className="h-4 w-4 text-gold" />
-            Transfer Tokens
+            {t("dashboard.transferTokens")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-xs text-[#94A3B8]">
-                Recipient Address
+              <Label className="text-xs text-muted-foreground">
+                {t("dashboard.recipientAddress")}
               </Label>
               <Input
-                placeholder="Enter Solana wallet address"
+                placeholder={t("dashboard.recipientPlaceholder")}
                 value={transferRecipient}
                 onChange={(e) => setTransferRecipient(e.target.value)}
-                className="bg-[#0B0E14] border-border text-[#F1F5F9] font-mono text-xs"
+                className="bg-background border-border text-foreground font-mono text-xs"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs text-[#94A3B8]">
-                Amount (tokens)
+              <Label className="text-xs text-muted-foreground">
+                {t("dashboard.amountTokens")}
               </Label>
               <Input
                 type="number"
                 placeholder="0"
                 value={transferAmount}
                 onChange={(e) => setTransferAmount(e.target.value)}
-                className="bg-[#0B0E14] border-border text-[#F1F5F9] font-mono text-xs"
+                className="bg-background border-border text-foreground font-mono text-xs"
               />
             </div>
           </div>
           <div className="flex items-center justify-between">
-            <p className="text-xs text-[#475569]">
-              Transfers require both sender and recipient to be KYC verified
+            <p className="text-xs text-muted-foreground/60">
+              {t("dashboard.transferNote")}
             </p>
             <Button
               onClick={handleTransfer}
@@ -558,14 +557,14 @@ export default function DashboardPage() {
                 !transferAmount ||
                 kycStatus !== "verified"
               }
-              className="bg-gold text-[#0B0E14] hover:bg-gold-dark"
+              className="bg-gold text-primary-foreground hover:bg-gold-dark"
             >
               {transferring ? (
                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
               ) : (
                 <Send className="h-3 w-3 mr-1" />
               )}
-              Send Tokens
+              {t("dashboard.sendTokens")}
             </Button>
           </div>
         </CardContent>

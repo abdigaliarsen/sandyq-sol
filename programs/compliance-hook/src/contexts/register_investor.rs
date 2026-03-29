@@ -29,6 +29,7 @@ pub struct RegisterInvestorHook<'info> {
 impl<'info> RegisterInvestorHook<'info> {
     pub fn handle(&mut self, is_authority: bool, bump: u8) -> Result<()> {
         let record = &mut self.investor_record;
+        record.authority = self.authority.key();
         record.wallet = self.wallet.key();
         record.mint = self.mint.key();
         record.is_kyc = false;

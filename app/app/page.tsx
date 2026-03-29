@@ -5,6 +5,8 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
+import { useTranslation, LanguageSwitcher } from "@/lib/i18n";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   ArrowRight,
   Shield,
@@ -120,9 +122,11 @@ function useTypingEffect(text: string, speed = 40, delay = 500) {
   const [started, setStarted] = useState(false);
 
   useEffect(() => {
+    setDisplayed("");
+    setStarted(false);
     const timeout = setTimeout(() => setStarted(true), delay);
     return () => clearTimeout(timeout);
-  }, [delay]);
+  }, [delay, text]);
 
   useEffect(() => {
     if (!started) return;
@@ -249,7 +253,7 @@ function ArchNode({ label, icon: Icon, delay }: { label: string; icon: any; dela
       >
         <Icon className="h-6 w-6 text-gold" />
       </motion.div>
-      <span className="text-xs text-center text-[#94A3B8] max-w-[100px] leading-tight">
+      <span className="text-xs text-center text-muted-foreground max-w-[100px] leading-tight">
         {label}
       </span>
     </motion.div>
@@ -257,7 +261,7 @@ function ArchNode({ label, icon: Icon, delay }: { label: string; icon: any; dela
 }
 
 /* ─── Compliance Flow SVG ─── */
-function ComplianceFlowDiagram() {
+function ComplianceFlowDiagram({ labels }: { labels: string[] }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
 
@@ -284,18 +288,18 @@ function ComplianceFlowDiagram() {
 
         {/* Nodes */}
         {[
-          { cx: 50, label: "Sender" },
-          { cx: 200, label: "Transfer Hook" },
-          { cx: 350, label: "KYC Check" },
-          { cx: 500, label: "Compliance" },
-          { cx: 650, label: "Receiver" },
+          { cx: 50, label: labels[0] },
+          { cx: 200, label: labels[1] },
+          { cx: 350, label: labels[2] },
+          { cx: 500, label: labels[3] },
+          { cx: 650, label: labels[4] },
         ].map((node, i) => (
           <g key={i}>
             <motion.circle
               cx={node.cx}
               cy="60"
               r="16"
-              fill="#111827"
+              fill="var(--card)"
               stroke="#C8A04A"
               strokeWidth="1.5"
               initial={{ scale: 0 }}
@@ -315,7 +319,7 @@ function ComplianceFlowDiagram() {
               x={node.cx}
               y="95"
               textAnchor="middle"
-              fill="#94A3B8"
+              fill="var(--muted-foreground)"
               fontSize="11"
               fontFamily="inherit"
               initial={{ opacity: 0 }}
@@ -352,12 +356,13 @@ function ComplianceFlowDiagram() {
 /* ─── MAIN PAGE ─── */
 export default function HomePage() {
   const wallet = useWallet();
+  const { t } = useTranslation();
   const { scrollYProgress } = useScroll();
   const heroOpacity = useTransform(scrollYProgress, [0, 0.15], [1, 0]);
   const heroScale = useTransform(scrollYProgress, [0, 0.15], [1, 0.97]);
 
   const tagline = useTypingEffect(
-    "Compliance-gated RWA tokenization on Solana",
+    t("landing.tagline"),
     35,
     800
   );
@@ -369,30 +374,26 @@ export default function HomePage() {
   const steps = [
     {
       icon: FileCheck,
-      title: "Create Asset",
-      description:
-        "Issuer tokenizes a real-world asset using Token-2022 with built-in compliance extensions.",
+      title: t("landing.step01.title"),
+      description: t("landing.step01.description"),
       step: "01",
     },
     {
       icon: UserCheck,
-      title: "Verify Identity",
-      description:
-        "Investors pass on-chain KYC verification. A soulbound attestation is minted to their wallet.",
+      title: t("landing.step02.title"),
+      description: t("landing.step02.description"),
       step: "02",
     },
     {
       icon: Shield,
-      title: "Compliant Transfers",
-      description:
-        "Every token transfer is validated by a Transfer Hook program enforcing regulatory rules.",
+      title: t("landing.step03.title"),
+      description: t("landing.step03.description"),
       step: "03",
     },
     {
       icon: Coins,
-      title: "Distribute Yield",
-      description:
-        "Income is distributed pro-rata to verified holders automatically through the protocol.",
+      title: t("landing.step04.title"),
+      description: t("landing.step04.description"),
       step: "04",
     },
   ];
@@ -400,45 +401,40 @@ export default function HomePage() {
   const features = [
     {
       icon: Link2,
-      title: "Transfer Hook Compliance",
-      description:
-        "Every transfer is checked by Solana at the protocol level. Non-compliant transfers are rejected before settlement.",
+      title: t("landing.feature.transferHook.title"),
+      description: t("landing.feature.transferHook.description"),
     },
     {
       icon: Fingerprint,
-      title: "On-chain KYC",
-      description:
-        "Soulbound verification tokens prove investor eligibility without exposing personal data on-chain.",
+      title: t("landing.feature.kyc.title"),
+      description: t("landing.feature.kyc.description"),
     },
     {
       icon: Coins,
-      title: "Yield Distribution",
-      description:
-        "Automatic pro-rata income distribution to all verified token holders through a single instruction.",
+      title: t("landing.feature.yield.title"),
+      description: t("landing.feature.yield.description"),
     },
     {
       icon: Scale,
-      title: "Regulatory Controls",
-      description:
-        "Freeze, recall, and attestation audit trail. Full lifecycle compliance from issuance to redemption.",
+      title: t("landing.feature.regulatory.title"),
+      description: t("landing.feature.regulatory.description"),
     },
     {
       icon: Landmark,
-      title: "AIFC Ready",
-      description:
-        "Designed for Kazakhstan's Astana International Financial Centre regulatory framework and beyond.",
+      title: t("landing.feature.aifc.title"),
+      description: t("landing.feature.aifc.description"),
     },
   ];
 
   const extensions = [
-    { name: "TransferHook", description: "Compliance validation on every transfer", icon: Shield },
-    { name: "PermanentDelegate", description: "Regulatory recall and freeze capability", icon: Lock },
-    { name: "DefaultAccountState", description: "Accounts frozen until KYC completion", icon: Eye },
-    { name: "MetadataPointer", description: "On-chain asset metadata and attestations", icon: Layers },
+    { name: "TransferHook", description: t("landing.ext.transferHook"), icon: Shield },
+    { name: "PermanentDelegate", description: t("landing.ext.permanentDelegate"), icon: Lock },
+    { name: "DefaultAccountState", description: t("landing.ext.defaultAccountState"), icon: Eye },
+    { name: "MetadataPointer", description: t("landing.ext.metadataPointer"), icon: Layers },
   ];
 
   return (
-    <div className="relative min-h-screen bg-[#0B0E14] overflow-x-hidden">
+    <div className="relative min-h-screen bg-background overflow-x-hidden">
       {/* ═══════════ HERO ═══════════ */}
       <motion.section
         className="relative min-h-screen flex flex-col items-center justify-center px-6"
@@ -446,6 +442,12 @@ export default function HomePage() {
       >
         <DotGrid />
         <FloatingParticles />
+
+        {/* Controls */}
+        <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
+          <ThemeToggle />
+          <LanguageSwitcher />
+        </div>
 
         {/* Radial glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gold/[0.04] rounded-full blur-[120px] pointer-events-none" />
@@ -470,7 +472,7 @@ export default function HomePage() {
               }}
               transition={{ duration: 4, repeat: Infinity }}
             >
-              <span className="text-3xl font-bold text-[#0B0E14]">S</span>
+              <span className="text-3xl font-bold text-primary-foreground">S</span>
             </motion.div>
           </motion.div>
 
@@ -496,12 +498,12 @@ export default function HomePage() {
 
           {/* Kazakh meaning */}
           <motion.p
-            className="text-sm tracking-[0.3em] uppercase text-[#94A3B8]/60 -mt-4"
+            className="text-sm tracking-[0.3em] uppercase text-muted-foreground/60 -mt-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
           >
-            сандық — the vault
+            {"сандық — "}{t("landing.meaning")}
           </motion.p>
 
           {/* Typing tagline */}
@@ -523,14 +525,12 @@ export default function HomePage() {
 
           {/* Sub text */}
           <motion.p
-            className="text-base sm:text-lg text-[#94A3B8] max-w-2xl mx-auto leading-relaxed"
+            className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.2, duration: 0.8 }}
           >
-            Tokenize real-world assets with institutional-grade compliance
-            baked into every transfer. Built on Solana&apos;s Token-2022 with
-            transfer hooks, on-chain KYC, and automated yield distribution.
+            {t("landing.description")}
           </motion.p>
 
           {/* CTA */}
@@ -545,16 +545,16 @@ export default function HomePage() {
             ) : (
               <Link
                 href="/dashboard"
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-gold to-gold-dark px-8 py-3.5 text-base font-semibold text-[#0B0E14] hover:shadow-lg hover:shadow-gold/25 transition-all duration-300"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-gold to-gold-dark px-8 py-3.5 text-base font-semibold text-primary-foreground hover:shadow-lg hover:shadow-gold/25 transition-all duration-300"
               >
-                Go to Dashboard <ArrowRight className="h-5 w-5" />
+                {t("landing.goToDashboard")} <ArrowRight className="h-5 w-5" />
               </Link>
             )}
             <button
               onClick={scrollToContent}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-8 py-3.5 text-base text-[#94A3B8] hover:border-gold/30 hover:text-gold transition-all duration-300"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-8 py-3.5 text-base text-muted-foreground hover:border-gold/30 hover:text-gold transition-all duration-300"
             >
-              Learn More <ChevronDown className="h-4 w-4" />
+              {t("landing.learnMore")} <ChevronDown className="h-4 w-4" />
             </button>
           </motion.div>
 
@@ -569,7 +569,7 @@ export default function HomePage() {
               (tag) => (
                 <span
                   key={tag}
-                  className="px-3 py-1.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-xs text-[#94A3B8] font-mono"
+                  className="px-3 py-1.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-xs text-muted-foreground font-mono"
                 >
                   {tag}
                 </span>
@@ -584,7 +584,7 @@ export default function HomePage() {
           animate={{ y: [0, 10, 0] }}
           transition={{ duration: 2, repeat: Infinity }}
         >
-          <ChevronDown className="h-6 w-6 text-[#94A3B8]/40" />
+          <ChevronDown className="h-6 w-6 text-muted-foreground/40" />
         </motion.div>
       </motion.section>
 
@@ -601,14 +601,13 @@ export default function HomePage() {
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
             >
-              Process
+              {t("landing.processLabel")}
             </motion.span>
-            <h2 className="text-3xl sm:text-4xl font-bold text-[#F1F5F9] mt-3">
-              How It Works
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mt-3">
+              {t("landing.howItWorks")}
             </h2>
-            <p className="text-[#94A3B8] mt-4 max-w-lg mx-auto">
-              From asset creation to yield distribution, every step is
-              enforced on-chain.
+            <p className="text-muted-foreground mt-4 max-w-lg mx-auto">
+              {t("landing.howItWorksDesc")}
             </p>
           </div>
 
@@ -631,10 +630,10 @@ export default function HomePage() {
                     <div className="h-12 w-12 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center mb-4 group-hover:bg-gold/20 transition-colors">
                       <step.icon className="h-5 w-5 text-gold" />
                     </div>
-                    <h3 className="text-lg font-semibold text-[#F1F5F9] mb-2">
+                    <h3 className="text-lg font-semibold text-foreground mb-2">
                       {step.title}
                     </h3>
-                    <p className="text-sm text-[#94A3B8] leading-relaxed">
+                    <p className="text-sm text-muted-foreground leading-relaxed">
                       {step.description}
                     </p>
                   </div>
@@ -645,10 +644,10 @@ export default function HomePage() {
 
           {/* Compliance flow visualization */}
           <div className="mt-16">
-            <p className="text-center text-xs text-[#94A3B8] mb-4 font-mono tracking-wide">
-              TRANSFER COMPLIANCE FLOW
+            <p className="text-center text-xs text-muted-foreground mb-4 font-mono tracking-wide">
+              {t("landing.transferComplianceFlow")}
             </p>
-            <ComplianceFlowDiagram />
+            <ComplianceFlowDiagram labels={[t("landing.flow.sender"), t("landing.flow.transferHook"), t("landing.flow.kycCheck"), t("landing.flow.compliance"), t("landing.flow.receiver")]} />
           </div>
         </div>
       </Section>
@@ -664,13 +663,13 @@ export default function HomePage() {
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
             >
-              Capabilities
+              {t("landing.capabilitiesLabel")}
             </motion.span>
-            <h2 className="text-3xl sm:text-4xl font-bold text-[#F1F5F9] mt-3">
-              Key Features
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mt-3">
+              {t("landing.keyFeatures")}
             </h2>
-            <p className="text-[#94A3B8] mt-4 max-w-lg mx-auto">
-              Institutional-grade compliance primitives, native to Solana.
+            <p className="text-muted-foreground mt-4 max-w-lg mx-auto">
+              {t("landing.keyFeaturesDesc")}
             </p>
           </div>
 
@@ -687,10 +686,10 @@ export default function HomePage() {
                   <div className="h-12 w-12 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center mb-4 group-hover:bg-gold/20 group-hover:border-gold/40 transition-all duration-300">
                     <feature.icon className="h-5 w-5 text-gold" />
                   </div>
-                  <h3 className="text-lg font-semibold text-[#F1F5F9] mb-2 group-hover:text-gold transition-colors duration-300">
+                  <h3 className="text-lg font-semibold text-foreground mb-2 group-hover:text-gold transition-colors duration-300">
                     {feature.title}
                   </h3>
-                  <p className="text-sm text-[#94A3B8] leading-relaxed">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
                     {feature.description}
                   </p>
                 </GlassCard>
@@ -710,14 +709,13 @@ export default function HomePage() {
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
             >
-              Architecture
+              {t("landing.architectureLabel")}
             </motion.span>
-            <h2 className="text-3xl sm:text-4xl font-bold text-[#F1F5F9] mt-3">
-              Built on Token-2022
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mt-3">
+              {t("landing.builtOnToken2022")}
             </h2>
-            <p className="text-[#94A3B8] mt-4 max-w-lg mx-auto">
-              Leveraging Solana&apos;s Token Extensions for native compliance
-              — no wrappers, no bridges, no workarounds.
+            <p className="text-muted-foreground mt-4 max-w-lg mx-auto">
+              {t("landing.builtOnToken2022Desc")}
             </p>
           </div>
 
@@ -738,7 +736,7 @@ export default function HomePage() {
                   <p className="font-mono text-sm text-gold mb-1">
                     {ext.name}
                   </p>
-                  <p className="text-xs text-[#94A3B8]">{ext.description}</p>
+                  <p className="text-xs text-muted-foreground">{ext.description}</p>
                 </GlassCard>
               </motion.div>
             ))}
@@ -754,8 +752,8 @@ export default function HomePage() {
           >
             <ConnectionLines />
             <div className="relative z-10">
-              <p className="text-center text-xs font-mono text-[#94A3B8] mb-10 tracking-wide">
-                PROTOCOL ARCHITECTURE
+              <p className="text-center text-xs font-mono text-muted-foreground mb-10 tracking-wide">
+                {t("landing.protocolArchitecture")}
               </p>
 
               {/* Top: Solana Runtime */}
@@ -773,24 +771,24 @@ export default function HomePage() {
                 >
                   <Zap className="h-5 w-5 text-gold" />
                   <span className="font-mono text-sm text-gold">
-                    Solana Runtime
+                    {t("landing.arch.solanaRuntime")}
                   </span>
                 </motion.div>
               </div>
 
               {/* Middle row */}
               <div className="flex flex-wrap justify-center gap-8 sm:gap-12 mb-8">
-                <ArchNode label="Token-2022 Program" icon={Layers} delay={0.2} />
-                <ArchNode label="Transfer Hook" icon={Shield} delay={0.4} />
-                <ArchNode label="RWA Core" icon={Landmark} delay={0.6} />
+                <ArchNode label={t("landing.arch.token2022")} icon={Layers} delay={0.2} />
+                <ArchNode label={t("landing.arch.transferHook")} icon={Shield} delay={0.4} />
+                <ArchNode label={t("landing.arch.rwaCore")} icon={Landmark} delay={0.6} />
               </div>
 
               {/* Bottom row */}
               <div className="flex flex-wrap justify-center gap-8 sm:gap-12">
-                <ArchNode label="KYC Registry" icon={Fingerprint} delay={0.8} />
-                <ArchNode label="Asset Config" icon={FileCheck} delay={1.0} />
-                <ArchNode label="Yield Vault" icon={Coins} delay={1.2} />
-                <ArchNode label="Audit Trail" icon={Eye} delay={1.4} />
+                <ArchNode label={t("landing.arch.kycRegistry")} icon={Fingerprint} delay={0.8} />
+                <ArchNode label={t("landing.arch.assetConfig")} icon={FileCheck} delay={1.0} />
+                <ArchNode label={t("landing.arch.yieldVault")} icon={Coins} delay={1.2} />
+                <ArchNode label={t("landing.arch.auditTrail")} icon={Eye} delay={1.4} />
               </div>
 
               {/* Stats */}
@@ -799,24 +797,24 @@ export default function HomePage() {
                   <div className="text-2xl font-bold">
                     <AnimatedCounter value={4} />
                   </div>
-                  <p className="text-xs text-[#94A3B8] mt-1">
-                    Token-2022 Extensions
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t("landing.stats.extensions")}
                   </p>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold">
                     <AnimatedCounter value={3} />
                   </div>
-                  <p className="text-xs text-[#94A3B8] mt-1">
-                    On-chain Programs
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t("landing.stats.programs")}
                   </p>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-success">
                     <AnimatedCounter value={100} suffix="%" />
                   </div>
-                  <p className="text-xs text-[#94A3B8] mt-1">
-                    On-chain Compliance
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t("landing.stats.compliance")}
                   </p>
                 </div>
               </div>
@@ -838,12 +836,11 @@ export default function HomePage() {
             viewport={{ once: true }}
             transition={{ duration: 0.8 }}
           >
-            <h2 className="text-3xl sm:text-4xl font-bold text-[#F1F5F9]">
-              Ready to tokenize?
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
+              {t("landing.readyToTokenize")}
             </h2>
-            <p className="text-[#94A3B8] max-w-lg mx-auto">
-              Connect your wallet to explore the protocol, or visit the
-              dashboard to manage assets and verify investors.
+            <p className="text-muted-foreground max-w-lg mx-auto">
+              {t("landing.footerDesc")}
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -852,15 +849,15 @@ export default function HomePage() {
               ) : (
                 <Link
                   href="/dashboard"
-                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-gold to-gold-dark px-8 py-3.5 text-base font-semibold text-[#0B0E14] hover:shadow-lg hover:shadow-gold/25 transition-all duration-300"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-gold to-gold-dark px-8 py-3.5 text-base font-semibold text-primary-foreground hover:shadow-lg hover:shadow-gold/25 transition-all duration-300"
                 >
-                  Go to Dashboard <ArrowRight className="h-5 w-5" />
+                  {t("landing.goToDashboard")} <ArrowRight className="h-5 w-5" />
                 </Link>
               )}
             </div>
 
             {/* Links */}
-            <div className="flex flex-wrap items-center justify-center gap-6 pt-8 text-sm text-[#94A3B8]">
+            <div className="flex flex-wrap items-center justify-center gap-6 pt-8 text-sm text-muted-foreground">
               <a
                 href="https://github.com"
                 target="_blank"
@@ -887,9 +884,9 @@ export default function HomePage() {
 
         {/* Bottom border */}
         <div className="max-w-6xl mx-auto mt-24 pt-8 border-t border-white/[0.06]">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#475569]">
-            <p>Sandyq Protocol — Compliance-gated RWA tokenization</p>
-            <p className="font-mono">Built on Solana Token-2022</p>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground/60">
+            <p>{t("landing.footerTagline")}</p>
+            <p className="font-mono">{t("landing.footerBuiltOn")}</p>
           </div>
         </div>
       </Section>

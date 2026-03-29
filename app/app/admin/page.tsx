@@ -2,11 +2,21 @@
 
 import React, { useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { AnchorProvider, BN } from "@coral-xyz/anchor";
 import {
   getAssociatedTokenAddressSync,
   TOKEN_2022_PROGRAM_ID,
+  ExtensionType,
+  getMintLen,
+  createInitializeTransferHookInstruction,
+  createInitializePermanentDelegateInstruction,
+  createInitializeDefaultAccountStateInstruction,
+  createInitializeMint2Instruction,
+  createSetAuthorityInstruction,
+  createAssociatedTokenAccountInstruction,
+  AccountState,
+  AuthorityType,
 } from "@solana/spl-token";
 import dynamic from "next/dynamic";
 import {
@@ -46,19 +56,21 @@ import {
   Lock,
   Unlock,
   ArrowRightLeft,
+  Plus,
+  Check,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n";
 import {
   formatCurrency,
   formatNumber,
   truncateAddress,
   COMPLIANCE_HOOK_PROGRAM_ID,
-  RWA_CORE_PROGRAM_ID,
 } from "@/lib/constants";
 import {
   getRwaCoreProgram,
   getComplianceHookProgram,
-  getAssetConfigPda,
   getInvestorRecordPda,
   getFreezeAuthorityPda,
   getMintAuthorityPda,
@@ -96,6 +108,7 @@ export default function AdminPage() {
   const { connection } = useConnection();
   const wallet = useWallet();
   const { publicKey, sendTransaction } = wallet;
+  const { t } = useTranslation();
 
   const [assets, setAssets] = useState<AssetInfo[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<AssetInfo | null>(null);
@@ -112,6 +125,29 @@ export default function AdminPage() {
   const [forceFromWallet, setForceFromWallet] = useState("");
   const [forceToWallet, setForceToWallet] = useState("");
   const [forceAmount, setForceAmount] = useState("");
+
+  // Create Asset form states
+  const [showCreateAsset, setShowCreateAsset] = useState(false);
+  const [createAssetForm, setCreateAssetForm] = useState({
+    name: "",
+    symbol: "",
+    assetType: "",
+    jurisdiction: "",
+    maxSupply: "",
+    valuationUsd: "",
+  });
+  const [createAssetStep, setCreateAssetStep] = useState(0);
+  const [createAssetStepStatus, setCreateAssetStepStatus] = useState<
+    Array<"pending" | "loading" | "done" | "error">
+  >(["pending", "pending", "pending", "pending", "pending"]);
+  const [createAssetError, setCreateAssetError] = useState<string | null>(null);
+  const [createdMintKeypair, setCreatedMintKeypair] = useState<Keypair | null>(null);
+  const [createdMintPubkey, setCreatedMintPubkey] = useState<PublicKey | null>(null);
+
+  // Attestation form states
+  const [attestDocName, setAttestDocName] = useState("");
+  const [attestDocUri, setAttestDocUri] = useState("");
+  const [attestDocHashManual, setAttestDocHashManual] = useState("");
 
   useEffect(() => {
     if (publicKey) loadAdmin();
@@ -185,6 +221,211 @@ export default function AdminPage() {
     }
   }
 
+  const CREATE_ASSET_STEPS = [
+    t("admin.createStep1"),
+    t("admin.createStep2"),
+    t("admin.createStep3"),
+    t("admin.createStep4"),
+    t("admin.createStep5"),
+  ];
+
+  async function handleCreateAsset(resumeFromStep?: number) {
+    if (!publicKey || !sendTransaction) return;
+    const { name, symbol, assetType, jurisdiction, maxSupply, valuationUsd } = createAssetForm;
+    if (!name || !symbol || !assetType || !jurisdiction || !maxSupply || !valuationUsd) {
+      toast.error(t("admin.toast.allFieldsRequired"));
+      return;
+    }
+
+    const provider = new AnchorProvider(connection, wallet as any, { commitment: "confirmed" });
+    const program = getRwaCoreProgram(provider);
+    const hookProgram = getComplianceHookProgram(provider);
+
+    const startStep = resumeFromStep ?? 0;
+    let mintKeypair = createdMintKeypair;
+    let mint = createdMintPubkey;
+
+    if (startStep === 0) {
+      mintKeypair = Keypair.generate();
+      mint = mintKeypair.publicKey;
+      setCreatedMintKeypair(mintKeypair);
+      setCreatedMintPubkey(mint);
+    }
+
+    if (!mintKeypair || !mint) {
+      toast.error(t("admin.toast.mintKeypairNotFound"));
+      return;
+    }
+
+    setCreateAssetError(null);
+    const statuses: Array<"pending" | "loading" | "done" | "error"> = [...createAssetStepStatus];
+
+    const [freezeAuthorityPda] = getFreezeAuthorityPda(mint);
+    const [mintAuthorityPda] = getMintAuthorityPda(mint);
+
+    async function runStep(stepIndex: number): Promise<boolean> {
+      statuses[stepIndex] = "loading";
+      setCreateAssetStepStatus([...statuses]);
+      setCreateAssetStep(stepIndex);
+
+      try {
+        if (stepIndex === 0) {
+          // Step 1: Create Token-2022 mint with extensions
+          const extensions = [
+            ExtensionType.TransferHook,
+            ExtensionType.PermanentDelegate,
+            ExtensionType.DefaultAccountState,
+          ];
+          const mintLen = getMintLen(extensions);
+          const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
+
+          const tx1 = new Transaction().add(
+            SystemProgram.createAccount({
+              fromPubkey: publicKey!,
+              newAccountPubkey: mint!,
+              space: mintLen,
+              lamports,
+              programId: TOKEN_2022_PROGRAM_ID,
+            }),
+            createInitializeTransferHookInstruction(
+              mint!, publicKey!, COMPLIANCE_HOOK_PROGRAM_ID, TOKEN_2022_PROGRAM_ID
+            ),
+            createInitializePermanentDelegateInstruction(
+              mint!, mintAuthorityPda, TOKEN_2022_PROGRAM_ID
+            ),
+            createInitializeDefaultAccountStateInstruction(
+              mint!, AccountState.Frozen, TOKEN_2022_PROGRAM_ID
+            ),
+            createInitializeMint2Instruction(
+              mint!, 0, publicKey!, freezeAuthorityPda, TOKEN_2022_PROGRAM_ID
+            ),
+          );
+
+          tx1.feePayer = publicKey!;
+          tx1.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+          tx1.partialSign(mintKeypair!);
+          await sendTransaction(tx1, connection);
+        } else if (stepIndex === 1) {
+          // Step 2: Transfer mint authority to PDA
+          const tx2 = new Transaction().add(
+            createSetAuthorityInstruction(
+              mint!, publicKey!, AuthorityType.MintTokens, mintAuthorityPda, [], TOKEN_2022_PROGRAM_ID
+            ),
+          );
+          await sendTransaction(tx2, connection);
+        } else if (stepIndex === 2) {
+          // Step 3: Create asset config
+          await (program.methods as any)
+            .createAsset(name, symbol, assetType, jurisdiction, new BN(maxSupply), new BN(valuationUsd))
+            .accounts({ authority: publicKey, mint })
+            .rpc();
+        } else if (stepIndex === 3) {
+          // Step 4: Initialize extra account meta list
+          await (hookProgram.methods as any)
+            .initializeExtraAccountMetaList()
+            .accounts({ payer: publicKey, mint, authority: publicKey })
+            .rpc();
+        } else if (stepIndex === 4) {
+          // Step 5: Register treasury + create ATA + approve KYC
+          // Register admin as investor with is_authority=true
+          await (hookProgram.methods as any)
+            .registerInvestor(true)
+            .accounts({ payer: publicKey, authority: publicKey, wallet: publicKey, mint })
+            .rpc();
+
+          // Create treasury ATA
+          const treasuryAta = getAssociatedTokenAddressSync(
+            mint!, publicKey!, false, TOKEN_2022_PROGRAM_ID
+          );
+          const ataTx = new Transaction().add(
+            createAssociatedTokenAccountInstruction(
+              publicKey!, treasuryAta, publicKey!, mint!, TOKEN_2022_PROGRAM_ID
+            ),
+          );
+          await sendTransaction(ataTx, connection);
+
+          // Approve own KYC to thaw the account
+          const [treasuryRecord] = getInvestorRecordPda(mint!, publicKey!);
+          const [freezeAuth] = getFreezeAuthorityPda(mint!);
+          await (program.methods as any)
+            .approveKyc()
+            .accounts({
+              authority: publicKey,
+              mint,
+              investorRecord: treasuryRecord,
+              investorTokenAccount: treasuryAta,
+              freezeAuthority: freezeAuth,
+              complianceHookProgram: COMPLIANCE_HOOK_PROGRAM_ID,
+              tokenProgram: TOKEN_2022_PROGRAM_ID,
+            })
+            .rpc();
+        }
+
+        statuses[stepIndex] = "done";
+        setCreateAssetStepStatus([...statuses]);
+        return true;
+      } catch (e: any) {
+        statuses[stepIndex] = "error";
+        setCreateAssetStepStatus([...statuses]);
+        setCreateAssetError(parseAnchorError(e));
+        return false;
+      }
+    }
+
+    for (let i = startStep; i < 5; i++) {
+      const ok = await runStep(i);
+      if (!ok) return;
+    }
+
+    toast.success(t("admin.toast.assetCreated"));
+    setShowCreateAsset(false);
+    setCreateAssetStep(0);
+    setCreateAssetStepStatus(["pending", "pending", "pending", "pending", "pending"]);
+    setCreateAssetForm({ name: "", symbol: "", assetType: "", jurisdiction: "", maxSupply: "", valuationUsd: "" });
+    setCreatedMintKeypair(null);
+    setCreatedMintPubkey(null);
+    loadAdmin();
+  }
+
+  async function handleSubmitAttestation() {
+    if (!publicKey || !selectedAsset || !attestDocName || !attestDocUri) return;
+    setActionLoading("attestation");
+    try {
+      const provider = new AnchorProvider(connection, wallet as any, { commitment: "confirmed" });
+      const program = getRwaCoreProgram(provider);
+      const mint = new PublicKey(selectedAsset.mint);
+
+      // Compute SHA-256 hash of document URI
+      let documentHash: number[];
+      if (attestDocHashManual && attestDocHashManual.length === 64) {
+        // Manual hex input
+        const bytes = [];
+        for (let i = 0; i < 64; i += 2) {
+          bytes.push(parseInt(attestDocHashManual.substring(i, i + 2), 16));
+        }
+        documentHash = bytes;
+      } else {
+        const encoder = new TextEncoder();
+        const encoded = encoder.encode(attestDocUri);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", encoded.buffer as ArrayBuffer);
+        documentHash = Array.from(new Uint8Array(hashBuffer));
+      }
+
+      await (program.methods as any)
+        .submitAttestation(documentHash, attestDocName, attestDocUri)
+        .accounts({ authority: publicKey, mint })
+        .rpc();
+
+      toast.success(t("admin.toast.attestationSubmitted"));
+      setAttestDocName("");
+      setAttestDocUri("");
+      setAttestDocHashManual("");
+    } catch (e: any) {
+      toast.error(parseAnchorError(e));
+    }
+    setActionLoading(null);
+  }
+
   async function handleRegisterInvestor() {
     if (!publicKey || !selectedAsset || !registerWallet) return;
     setActionLoading("register");
@@ -210,7 +451,7 @@ export default function AdminPage() {
         })
         .rpc();
 
-      toast.success("Investor registered!", {
+      toast.success(t("admin.toast.investorRegistered"), {
         description: `TX: ${truncateAddress(tx, 8)}`,
       });
       setRegisterWallet("");
@@ -255,7 +496,7 @@ export default function AdminPage() {
         })
         .rpc();
 
-      toast.success("KYC approved!", {
+      toast.success(t("admin.toast.kycApproved"), {
         description: `TX: ${truncateAddress(tx, 8)}`,
       });
       loadAdmin();
@@ -299,7 +540,7 @@ export default function AdminPage() {
         })
         .rpc();
 
-      toast.success("KYC revoked!", {
+      toast.success(t("admin.toast.kycRevoked"), {
         description: `TX: ${truncateAddress(tx, 8)}`,
       });
       loadAdmin();
@@ -343,8 +584,8 @@ export default function AdminPage() {
         })
         .rpc();
 
-      toast.success("Tokens issued!", {
-        description: `${issueAmount} ${selectedAsset.symbol} issued. TX: ${truncateAddress(tx, 8)}`,
+      toast.success(t("admin.toast.tokensIssued"), {
+        description: t("admin.toast.tokensIssuedDesc", { amount: issueAmount, symbol: selectedAsset.symbol, tx: truncateAddress(tx, 8) }),
       });
       setIssueWallet("");
       setIssueAmount("");
@@ -374,7 +615,7 @@ export default function AdminPage() {
         })
         .rpc();
 
-      toast.success("Yield deposited!", {
+      toast.success(t("admin.toast.yieldDeposited"), {
         description: `TX: ${truncateAddress(tx, 8)}`,
       });
       setYieldAmount("");
@@ -440,7 +681,7 @@ export default function AdminPage() {
         })
         .rpc();
 
-      toast.success("Force transfer complete!", {
+      toast.success(t("admin.toast.forceTransferComplete"), {
         description: `TX: ${truncateAddress(tx, 8)}`,
       });
       setForceFromWallet("");
@@ -456,12 +697,12 @@ export default function AdminPage() {
   if (!publicKey) {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
-        <Shield className="h-12 w-12 text-[#94A3B8]" />
-        <h2 className="text-xl font-semibold text-[#F1F5F9]">
-          Admin Access Required
+        <Shield className="h-12 w-12 text-muted-foreground" />
+        <h2 className="text-xl font-semibold text-foreground">
+          {t("admin.accessRequired")}
         </h2>
-        <p className="text-sm text-[#94A3B8]">
-          Connect the asset authority wallet to access admin features
+        <p className="text-sm text-muted-foreground">
+          {t("admin.accessRequiredDesc")}
         </p>
         <WalletMultiButton />
       </div>
@@ -471,22 +712,214 @@ export default function AdminPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-8 w-48 bg-[#1E293B] rounded animate-pulse" />
-        <div className="h-96 bg-[#111827] rounded-xl animate-pulse" />
+        <div className="h-8 w-48 bg-secondary rounded animate-pulse" />
+        <div className="h-96 bg-card rounded-xl animate-pulse" />
       </div>
     );
   }
 
-  if (!isAdmin) {
+  if (!isAdmin && !showCreateAsset) {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
         <AlertTriangle className="h-12 w-12 text-warning" />
-        <h2 className="text-xl font-semibold text-[#F1F5F9]">
-          Not Authorized
+        <h2 className="text-xl font-semibold text-foreground">
+          {t("admin.notAuthorized")}
         </h2>
-        <p className="text-sm text-[#94A3B8]">
-          Your wallet is not the authority for any asset. Connect the correct wallet.
+        <p className="text-sm text-muted-foreground">
+          {t("admin.notAuthorizedDesc")}
         </p>
+        <Button
+          onClick={() => setShowCreateAsset(true)}
+          className="bg-gold text-primary-foreground hover:bg-gold-dark mt-4"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          {t("admin.createNewAsset")}
+        </Button>
+      </div>
+    );
+  }
+
+  if (showCreateAsset) {
+    const isRunning = createAssetStepStatus.some((s) => s === "loading");
+    const failedStep = createAssetStepStatus.findIndex((s) => s === "error");
+
+    return (
+      <div className="space-y-6 max-w-2xl mx-auto">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-foreground">{t("admin.createNewAsset")}</h1>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setShowCreateAsset(false);
+              setCreateAssetStep(0);
+              setCreateAssetStepStatus(["pending", "pending", "pending", "pending", "pending"]);
+              setCreateAssetError(null);
+              setCreatedMintKeypair(null);
+              setCreatedMintPubkey(null);
+            }}
+            className="border-border text-muted-foreground"
+          >
+            {t("admin.cancel")}
+          </Button>
+        </div>
+
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-base text-foreground flex items-center gap-2">
+              <Plus className="h-4 w-4 text-gold" />
+              {t("admin.assetDetails")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">{t("admin.assetName")}</Label>
+                <Input
+                  placeholder={t("admin.assetNamePlaceholder")}
+                  value={createAssetForm.name}
+                  onChange={(e) => setCreateAssetForm((f) => ({ ...f, name: e.target.value }))}
+                  disabled={isRunning}
+                  className="bg-background border-border text-foreground text-xs"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">{t("admin.symbolLabel")}</Label>
+                <Input
+                  placeholder={t("admin.symbolPlaceholder")}
+                  value={createAssetForm.symbol}
+                  onChange={(e) => setCreateAssetForm((f) => ({ ...f, symbol: e.target.value }))}
+                  disabled={isRunning}
+                  className="bg-background border-border text-foreground text-xs"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">{t("admin.assetTypeLabel")}</Label>
+                <Input
+                  placeholder={t("admin.assetTypePlaceholder")}
+                  value={createAssetForm.assetType}
+                  onChange={(e) => setCreateAssetForm((f) => ({ ...f, assetType: e.target.value }))}
+                  disabled={isRunning}
+                  className="bg-background border-border text-foreground text-xs"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">{t("admin.jurisdictionLabel")}</Label>
+                <Input
+                  placeholder={t("admin.jurisdictionPlaceholder")}
+                  value={createAssetForm.jurisdiction}
+                  onChange={(e) => setCreateAssetForm((f) => ({ ...f, jurisdiction: e.target.value }))}
+                  disabled={isRunning}
+                  className="bg-background border-border text-foreground text-xs"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">{t("admin.maxSupplyTokens")}</Label>
+                <Input
+                  type="number"
+                  placeholder="10000"
+                  value={createAssetForm.maxSupply}
+                  onChange={(e) => setCreateAssetForm((f) => ({ ...f, maxSupply: e.target.value }))}
+                  disabled={isRunning}
+                  className="bg-background border-border text-foreground font-mono text-xs"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">{t("admin.valuationUsdCents")}</Label>
+                <Input
+                  type="number"
+                  placeholder="37660000"
+                  value={createAssetForm.valuationUsd}
+                  onChange={(e) => setCreateAssetForm((f) => ({ ...f, valuationUsd: e.target.value }))}
+                  disabled={isRunning}
+                  className="bg-background border-border text-foreground font-mono text-xs"
+                />
+                {createAssetForm.valuationUsd && (
+                  <p className="text-xs text-muted-foreground/60">
+                    = ${(Number(createAssetForm.valuationUsd) / 100).toLocaleString()} USD
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Step progress */}
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-base text-foreground">
+              {t("admin.creationProgress")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {CREATE_ASSET_STEPS.map((stepName, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
+                  {createAssetStepStatus[i] === "done" ? (
+                    <Check className="h-4 w-4 text-success" />
+                  ) : createAssetStepStatus[i] === "loading" ? (
+                    <Loader2 className="h-4 w-4 text-gold animate-spin" />
+                  ) : createAssetStepStatus[i] === "error" ? (
+                    <AlertTriangle className="h-4 w-4 text-danger" />
+                  ) : (
+                    <span className="text-xs text-muted-foreground/60 font-mono">{i + 1}</span>
+                  )}
+                </div>
+                <span
+                  className={`text-sm ${
+                    createAssetStepStatus[i] === "done"
+                      ? "text-success"
+                      : createAssetStepStatus[i] === "loading"
+                      ? "text-gold"
+                      : createAssetStepStatus[i] === "error"
+                      ? "text-danger"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {t("admin.step")} {i + 1}/5: {stepName}
+                </span>
+              </div>
+            ))}
+
+            {createAssetError && (
+              <div className="mt-3 p-3 rounded bg-danger/10 border border-danger/20">
+                <p className="text-xs text-danger">{createAssetError}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              {failedStep >= 0 ? (
+                <Button
+                  onClick={() => handleCreateAsset(failedStep)}
+                  className="bg-gold text-primary-foreground hover:bg-gold-dark"
+                >
+                  {t("admin.retryFromStep", { step: String(failedStep + 1) })}
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => handleCreateAsset()}
+                  disabled={
+                    isRunning ||
+                    !createAssetForm.name ||
+                    !createAssetForm.symbol ||
+                    !createAssetForm.assetType ||
+                    !createAssetForm.jurisdiction ||
+                    !createAssetForm.maxSupply ||
+                    !createAssetForm.valuationUsd
+                  }
+                  className="bg-gold text-primary-foreground hover:bg-gold-dark"
+                >
+                  {isRunning ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <Plus className="h-3 w-3 mr-1" />
+                  )}
+                  {isRunning ? t("admin.creating") : t("admin.createAsset")}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -494,12 +927,22 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-[#F1F5F9]">Admin Panel</h1>
-        {selectedAsset && (
-          <Badge variant="outline" className="border-gold/30 text-gold">
-            {selectedAsset.symbol} - {truncateAddress(selectedAsset.mint)}
-          </Badge>
-        )}
+        <h1 className="text-2xl font-bold text-foreground">{t("admin.title")}</h1>
+        <div className="flex items-center gap-3">
+          {selectedAsset && (
+            <Badge variant="outline" className="border-gold/30 text-gold">
+              {selectedAsset.symbol} - {truncateAddress(selectedAsset.mint)}
+            </Badge>
+          )}
+          <Button
+            onClick={() => setShowCreateAsset(true)}
+            size="sm"
+            className="bg-gold text-primary-foreground hover:bg-gold-dark"
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            {t("admin.createNewAsset")}
+          </Button>
+        </div>
       </div>
 
       {/* Asset selector if multiple */}
@@ -515,8 +958,8 @@ export default function AdminPage() {
               onClick={() => setSelectedAsset(a)}
               className={
                 selectedAsset?.mint === a.mint
-                  ? "bg-gold text-[#0B0E14]"
-                  : "border-border text-[#94A3B8]"
+                  ? "bg-gold text-primary-foreground"
+                  : "border-border text-muted-foreground"
               }
             >
               {a.symbol}
@@ -526,48 +969,54 @@ export default function AdminPage() {
       )}
 
       <Tabs defaultValue="investors" className="space-y-4">
-        <TabsList className="bg-[#111827] border border-border">
+        <TabsList className="bg-card border border-border">
           <TabsTrigger
             value="investors"
             className="data-[state=active]:bg-gold/10 data-[state=active]:text-gold"
           >
-            <Users className="h-3 w-3 mr-1" /> Investors
+            <Users className="h-3 w-3 mr-1" /> {t("admin.tab.investors")}
           </TabsTrigger>
           <TabsTrigger
             value="distributions"
             className="data-[state=active]:bg-gold/10 data-[state=active]:text-gold"
           >
-            <DollarSign className="h-3 w-3 mr-1" /> Distributions
+            <DollarSign className="h-3 w-3 mr-1" /> {t("admin.tab.distributions")}
           </TabsTrigger>
           <TabsTrigger
             value="compliance"
             className="data-[state=active]:bg-gold/10 data-[state=active]:text-gold"
           >
-            <Shield className="h-3 w-3 mr-1" /> Compliance
+            <Shield className="h-3 w-3 mr-1" /> {t("admin.tab.compliance")}
+          </TabsTrigger>
+          <TabsTrigger
+            value="attestations"
+            className="data-[state=active]:bg-gold/10 data-[state=active]:text-gold"
+          >
+            <FileText className="h-3 w-3 mr-1" /> {t("admin.tab.attestations")}
           </TabsTrigger>
         </TabsList>
 
         {/* INVESTORS TAB */}
         <TabsContent value="investors" className="space-y-4">
           {/* Register new investor */}
-          <Card className="bg-[#111827] border-border">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-base text-[#F1F5F9] flex items-center gap-2">
+              <CardTitle className="text-base text-foreground flex items-center gap-2">
                 <UserPlus className="h-4 w-4 text-gold" />
-                Register & Issue
+                {t("admin.registerAndIssue")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2 md:col-span-2">
-                  <Label className="text-xs text-[#94A3B8]">
-                    Investor Wallet
+                  <Label className="text-xs text-muted-foreground">
+                    {t("admin.investorWallet")}
                   </Label>
                   <Input
-                    placeholder="Wallet address to register"
+                    placeholder={t("admin.investorWalletPlaceholder")}
                     value={registerWallet}
                     onChange={(e) => setRegisterWallet(e.target.value)}
-                    className="bg-[#0B0E14] border-border text-[#F1F5F9] font-mono text-xs"
+                    className="bg-background border-border text-foreground font-mono text-xs"
                   />
                 </div>
                 <div className="flex items-end">
@@ -576,40 +1025,40 @@ export default function AdminPage() {
                     disabled={
                       actionLoading === "register" || !registerWallet
                     }
-                    className="w-full bg-gold text-[#0B0E14] hover:bg-gold-dark"
+                    className="w-full bg-gold text-primary-foreground hover:bg-gold-dark"
                   >
                     {actionLoading === "register" ? (
                       <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                     ) : (
                       <UserPlus className="h-3 w-3 mr-1" />
                     )}
-                    Register
+                    {t("admin.register")}
                   </Button>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2 border-t border-border">
                 <div className="space-y-2 md:col-span-2">
-                  <Label className="text-xs text-[#94A3B8]">
-                    Issue To (wallet)
+                  <Label className="text-xs text-muted-foreground">
+                    {t("admin.issueTo")}
                   </Label>
                   <Input
-                    placeholder="Wallet address"
+                    placeholder={t("admin.issueToPlaceholder")}
                     value={issueWallet}
                     onChange={(e) => setIssueWallet(e.target.value)}
-                    className="bg-[#0B0E14] border-border text-[#F1F5F9] font-mono text-xs"
+                    className="bg-background border-border text-foreground font-mono text-xs"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs text-[#94A3B8]">
-                    Amount
+                  <Label className="text-xs text-muted-foreground">
+                    {t("common.amount")}
                   </Label>
                   <Input
                     type="number"
                     placeholder="0"
                     value={issueAmount}
                     onChange={(e) => setIssueAmount(e.target.value)}
-                    className="bg-[#0B0E14] border-border text-[#F1F5F9] font-mono text-xs"
+                    className="bg-background border-border text-foreground font-mono text-xs"
                   />
                 </div>
                 <div className="flex items-end">
@@ -620,14 +1069,14 @@ export default function AdminPage() {
                       !issueWallet ||
                       !issueAmount
                     }
-                    className="w-full bg-gold text-[#0B0E14] hover:bg-gold-dark"
+                    className="w-full bg-gold text-primary-foreground hover:bg-gold-dark"
                   >
                     {actionLoading === "issue" ? (
                       <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                     ) : (
                       <Coins className="h-3 w-3 mr-1" />
                     )}
-                    Issue Tokens
+                    {t("admin.issueTokens")}
                   </Button>
                 </div>
               </div>
@@ -635,35 +1084,35 @@ export default function AdminPage() {
           </Card>
 
           {/* Investors table */}
-          <Card className="bg-[#111827] border-border">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-base text-[#F1F5F9]">
-                Registered Investors ({investors.length})
+              <CardTitle className="text-base text-foreground">
+                {t("admin.registeredInvestors")} ({investors.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
               {investors.length === 0 ? (
-                <p className="text-sm text-[#94A3B8] py-4 text-center">
-                  No investors registered yet
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  {t("admin.noInvestors")}
                 </p>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
-                      <TableHead className="text-[#94A3B8] text-xs">
-                        Wallet
+                      <TableHead className="text-muted-foreground text-xs">
+                        {t("admin.table.wallet")}
                       </TableHead>
-                      <TableHead className="text-[#94A3B8] text-xs">
-                        KYC Status
+                      <TableHead className="text-muted-foreground text-xs">
+                        {t("admin.table.kycStatus")}
                       </TableHead>
-                      <TableHead className="text-[#94A3B8] text-xs">
-                        Role
+                      <TableHead className="text-muted-foreground text-xs">
+                        {t("admin.table.role")}
                       </TableHead>
-                      <TableHead className="text-[#94A3B8] text-xs">
-                        Registered
+                      <TableHead className="text-muted-foreground text-xs">
+                        {t("admin.table.registered")}
                       </TableHead>
-                      <TableHead className="text-[#94A3B8] text-xs text-right">
-                        Actions
+                      <TableHead className="text-muted-foreground text-xs text-right">
+                        {t("admin.table.actions")}
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -671,26 +1120,26 @@ export default function AdminPage() {
                     {investors.map((inv) => (
                       <TableRow
                         key={inv.recordPda}
-                        className="border-border hover:bg-[#1E293B]"
+                        className="border-border hover:bg-secondary"
                       >
-                        <TableCell className="font-mono text-xs text-[#F1F5F9]">
+                        <TableCell className="font-mono text-xs text-foreground">
                           {truncateAddress(inv.wallet, 6)}
                         </TableCell>
                         <TableCell>
                           {inv.isKyc ? (
                             <Badge className="bg-success/10 text-success border-0 text-xs">
-                              Verified
+                              {t("common.verified")}
                             </Badge>
                           ) : (
                             <Badge className="bg-warning/10 text-warning border-0 text-xs">
-                              Pending
+                              {t("common.pending")}
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="text-xs text-[#94A3B8]">
-                          {inv.isAuthority ? "Authority" : "Investor"}
+                        <TableCell className="text-xs text-muted-foreground">
+                          {inv.isAuthority ? t("admin.role.authority") : t("admin.role.investor")}
                         </TableCell>
-                        <TableCell className="text-xs text-[#94A3B8]">
+                        <TableCell className="text-xs text-muted-foreground">
                           {new Date(
                             inv.createdAt * 1000
                           ).toLocaleDateString()}
@@ -715,7 +1164,7 @@ export default function AdminPage() {
                               ) : (
                                 <ShieldCheck className="h-3 w-3 mr-1" />
                               )}
-                              Approve
+                              {t("admin.approve")}
                             </Button>
                           ) : (
                             <Button
@@ -736,7 +1185,7 @@ export default function AdminPage() {
                               ) : (
                                 <ShieldX className="h-3 w-3 mr-1" />
                               )}
-                              Revoke
+                              {t("admin.revoke")}
                             </Button>
                           )}
                         </TableCell>
@@ -751,36 +1200,36 @@ export default function AdminPage() {
 
         {/* DISTRIBUTIONS TAB */}
         <TabsContent value="distributions" className="space-y-4">
-          <Card className="bg-[#111827] border-border">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-base text-[#F1F5F9] flex items-center gap-2">
+              <CardTitle className="text-base text-foreground flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-gold" />
-                Deposit Yield
+                {t("admin.depositYield")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2 md:col-span-2">
-                  <Label className="text-xs text-[#94A3B8]">
-                    Amount (USDC lamports)
+                  <Label className="text-xs text-muted-foreground">
+                    {t("admin.amountUsdcLamports")}
                   </Label>
                   <Input
                     type="number"
-                    placeholder="Amount in smallest units"
+                    placeholder={t("admin.amountPlaceholder")}
                     value={yieldAmount}
                     onChange={(e) => setYieldAmount(e.target.value)}
-                    className="bg-[#0B0E14] border-border text-[#F1F5F9] font-mono text-xs"
+                    className="bg-background border-border text-foreground font-mono text-xs"
                   />
                   {yieldAmount &&
                     selectedAsset &&
                     selectedAsset.totalSupply > 0 && (
-                      <p className="text-xs text-[#475569]">
-                        Per-token yield:{" "}
+                      <p className="text-xs text-muted-foreground/60">
+                        {t("admin.perTokenYield")}{" "}
                         {(
                           Number(yieldAmount) /
                           selectedAsset.totalSupply
                         ).toFixed(2)}{" "}
-                        lamports/token
+                        {t("admin.lamportsPerToken")}
                       </p>
                     )}
                 </div>
@@ -790,14 +1239,14 @@ export default function AdminPage() {
                     disabled={
                       actionLoading === "yield" || !yieldAmount
                     }
-                    className="w-full bg-gold text-[#0B0E14] hover:bg-gold-dark"
+                    className="w-full bg-gold text-primary-foreground hover:bg-gold-dark"
                   >
                     {actionLoading === "yield" ? (
                       <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                     ) : (
                       <DollarSign className="h-3 w-3 mr-1" />
                     )}
-                    Deposit Yield
+                    {t("admin.depositYield")}
                   </Button>
                 </div>
               </div>
@@ -806,35 +1255,35 @@ export default function AdminPage() {
 
           {/* Asset stats */}
           {selectedAsset && (
-            <Card className="bg-[#111827] border-border">
+            <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-base text-[#F1F5F9]">
-                  Asset Overview
+                <CardTitle className="text-base text-foreground">
+                  {t("admin.assetOverview")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
-                    <p className="text-xs text-[#94A3B8]">Total Supply</p>
-                    <p className="text-lg font-mono text-[#F1F5F9]">
+                    <p className="text-xs text-muted-foreground">{t("admin.totalSupply")}</p>
+                    <p className="text-lg font-mono text-foreground">
                       {formatNumber(selectedAsset.totalSupply)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-[#94A3B8]">Max Supply</p>
-                    <p className="text-lg font-mono text-[#F1F5F9]">
+                    <p className="text-xs text-muted-foreground">{t("admin.maxSupply")}</p>
+                    <p className="text-lg font-mono text-foreground">
                       {formatNumber(selectedAsset.maxSupply)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-[#94A3B8]">Valuation</p>
-                    <p className="text-lg font-mono text-[#F1F5F9]">
+                    <p className="text-xs text-muted-foreground">{t("admin.valuation")}</p>
+                    <p className="text-lg font-mono text-foreground">
                       {formatCurrency(selectedAsset.valuationUsd)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-[#94A3B8]">Investors</p>
-                    <p className="text-lg font-mono text-[#F1F5F9]">
+                    <p className="text-xs text-muted-foreground">{t("admin.investors")}</p>
+                    <p className="text-lg font-mono text-foreground">
                       {investors.length}
                     </p>
                   </div>
@@ -847,53 +1296,52 @@ export default function AdminPage() {
         {/* COMPLIANCE TAB */}
         <TabsContent value="compliance" className="space-y-4">
           {/* Force Transfer */}
-          <Card className="bg-[#111827] border-border border-danger/20">
+          <Card className="bg-card border-border border-danger/20">
             <CardHeader>
-              <CardTitle className="text-base text-[#F1F5F9] flex items-center gap-2">
+              <CardTitle className="text-base text-foreground flex items-center gap-2">
                 <ArrowRightLeft className="h-4 w-4 text-danger" />
-                Force Transfer (Recall)
+                {t("admin.forceTransfer")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-xs text-[#475569]">
-                Use this to recall tokens from an investor back to
-                treasury. Requires permanent delegate authority.
+              <p className="text-xs text-muted-foreground/60">
+                {t("admin.forceTransferDesc")}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs text-[#94A3B8]">
-                    From (wallet)
+                  <Label className="text-xs text-muted-foreground">
+                    {t("admin.fromWallet")}
                   </Label>
                   <Input
-                    placeholder="Source wallet"
+                    placeholder={t("admin.fromWalletPlaceholder")}
                     value={forceFromWallet}
                     onChange={(e) =>
                       setForceFromWallet(e.target.value)
                     }
-                    className="bg-[#0B0E14] border-border text-[#F1F5F9] font-mono text-xs"
+                    className="bg-background border-border text-foreground font-mono text-xs"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs text-[#94A3B8]">
-                    To (wallet)
+                  <Label className="text-xs text-muted-foreground">
+                    {t("admin.toWallet")}
                   </Label>
                   <Input
-                    placeholder="Destination wallet"
+                    placeholder={t("admin.toWalletPlaceholder")}
                     value={forceToWallet}
                     onChange={(e) => setForceToWallet(e.target.value)}
-                    className="bg-[#0B0E14] border-border text-[#F1F5F9] font-mono text-xs"
+                    className="bg-background border-border text-foreground font-mono text-xs"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs text-[#94A3B8]">
-                    Amount
+                  <Label className="text-xs text-muted-foreground">
+                    {t("common.amount")}
                   </Label>
                   <Input
                     type="number"
                     placeholder="0"
                     value={forceAmount}
                     onChange={(e) => setForceAmount(e.target.value)}
-                    className="bg-[#0B0E14] border-border text-[#F1F5F9] font-mono text-xs"
+                    className="bg-background border-border text-foreground font-mono text-xs"
                   />
                 </div>
               </div>
@@ -913,7 +1361,71 @@ export default function AdminPage() {
                 ) : (
                   <ArrowRightLeft className="h-3 w-3 mr-1" />
                 )}
-                Execute Force Transfer
+                {t("admin.executeForceTransfer")}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ATTESTATIONS TAB */}
+        <TabsContent value="attestations" className="space-y-4">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-base text-foreground flex items-center gap-2">
+                <FileText className="h-4 w-4 text-gold" />
+                Submit Attestation
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground/60">
+                Submit a document attestation on-chain for the selected asset. The document hash is auto-computed from the URI using SHA-256, or you can provide a manual 32-byte hex hash.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Document Name</Label>
+                  <Input
+                    placeholder="Title Deed"
+                    value={attestDocName}
+                    onChange={(e) => setAttestDocName(e.target.value)}
+                    className="bg-background border-border text-foreground text-xs"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Document URI</Label>
+                  <Input
+                    placeholder="ipfs://..."
+                    value={attestDocUri}
+                    onChange={(e) => setAttestDocUri(e.target.value)}
+                    className="bg-background border-border text-foreground font-mono text-xs"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">
+                  Document Hash (optional, 64-char hex; auto-computed from URI if empty)
+                </Label>
+                <Input
+                  placeholder="e.g. a1b2c3d4... (64 hex characters)"
+                  value={attestDocHashManual}
+                  onChange={(e) => setAttestDocHashManual(e.target.value)}
+                  className="bg-background border-border text-foreground font-mono text-xs"
+                />
+              </div>
+              <Button
+                onClick={handleSubmitAttestation}
+                disabled={
+                  actionLoading === "attestation" ||
+                  !attestDocName ||
+                  !attestDocUri
+                }
+                className="bg-gold text-primary-foreground hover:bg-gold-dark"
+              >
+                {actionLoading === "attestation" ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : (
+                  <FileText className="h-3 w-3 mr-1" />
+                )}
+                Submit Attestation
               </Button>
             </CardContent>
           </Card>

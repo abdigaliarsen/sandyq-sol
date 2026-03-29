@@ -6,6 +6,10 @@ skip-lint = false
 rwa_core = "9ZQBB6PWDiBeHbhKZBEyC5wr6C23ohFwrMAw3ugstG8A"
 compliance_hook = "D9yfcXGzFWLtyfKXapXxKcBFfDwGJfW7i717bM5YrnSh"
 
+[programs.devnet]
+rwa_core = "9ZQBB6PWDiBeHbhKZBEyC5wr6C23ohFwrMAw3ugstG8A"
+compliance_hook = "D9yfcXGzFWLtyfKXapXxKcBFfDwGJfW7i717bM5YrnSh"
+
 [registry]
 url = "https://api.apr.dev"
 

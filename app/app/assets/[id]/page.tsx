@@ -38,6 +38,7 @@ import {
   truncateAddress,
 } from "@/lib/constants";
 import { getRwaCoreProgram, getAssetConfigPda } from "@/lib/programs";
+import { useTranslation } from "@/lib/i18n";
 
 interface AssetDetail {
   name: string;
@@ -66,6 +67,7 @@ export default function AssetDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { connection } = useConnection();
+  const { t } = useTranslation();
   const [asset, setAsset] = useState<AssetDetail | null>(null);
   const [attestations, setAttestations] = useState<AttestationData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,8 +143,8 @@ export default function AssetDetailPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-8 w-48 bg-[#1E293B] rounded animate-pulse" />
-        <div className="h-64 bg-[#111827] rounded-xl animate-pulse" />
+        <div className="h-8 w-48 bg-secondary rounded animate-pulse" />
+        <div className="h-64 bg-card rounded-xl animate-pulse" />
       </div>
     );
   }
@@ -150,9 +152,9 @@ export default function AssetDetailPage() {
   if (!asset) {
     return (
       <div className="text-center py-20">
-        <p className="text-[#94A3B8]">Asset not found</p>
+        <p className="text-muted-foreground">{t("asset.notFound")}</p>
         <Link href="/" className="text-gold hover:underline text-sm mt-2 inline-block">
-          Back to Home
+          {t("asset.backToHome")}
         </Link>
       </div>
     );
@@ -166,9 +168,9 @@ export default function AssetDetailPage() {
       {/* Back nav */}
       <Link
         href="/"
-        className="inline-flex items-center gap-1 text-sm text-[#94A3B8] hover:text-gold transition-colors"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-gold transition-colors"
       >
-        <ArrowLeft className="h-3 w-3" /> Back to Assets
+        <ArrowLeft className="h-3 w-3" /> {t("asset.backToAssets")}
       </Link>
 
       {/* Header */}
@@ -183,55 +185,55 @@ export default function AssetDetailPage() {
             </Badge>
             {asset.isActive ? (
               <Badge className="bg-success/10 text-success border-0 text-xs">
-                Active
+                {t("common.active")}
               </Badge>
             ) : (
               <Badge className="bg-danger/10 text-danger border-0 text-xs">
-                Inactive
+                {t("common.inactive")}
               </Badge>
             )}
           </div>
-          <h1 className="text-2xl font-bold text-[#F1F5F9]">{asset.name}</h1>
+          <h1 className="text-2xl font-bold text-foreground">{asset.name}</h1>
         </div>
       </div>
 
       {/* Info Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Property Info */}
-        <Card className="bg-[#111827] border-border lg:col-span-2">
+        <Card className="bg-card border-border lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base text-[#F1F5F9] flex items-center gap-2">
+            <CardTitle className="text-base text-foreground flex items-center gap-2">
               <Building2 className="h-4 w-4 text-gold" />
-              Property Information
+              {t("asset.propertyInfo")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs text-[#94A3B8]">Property Name</p>
-                <p className="text-sm text-[#F1F5F9]">{asset.name}</p>
+                <p className="text-xs text-muted-foreground">{t("asset.propertyName")}</p>
+                <p className="text-sm text-foreground">{asset.name}</p>
               </div>
               <div>
-                <p className="text-xs text-[#94A3B8]">Address</p>
-                <p className="text-sm text-[#F1F5F9] flex items-center gap-1">
-                  <MapPin className="h-3 w-3 text-[#94A3B8]" />
+                <p className="text-xs text-muted-foreground">{t("asset.address")}</p>
+                <p className="text-sm text-foreground flex items-center gap-1">
+                  <MapPin className="h-3 w-3 text-muted-foreground" />
                   {asset.jurisdiction}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-[#94A3B8]">Valuation</p>
-                <p className="text-sm font-mono text-[#F1F5F9]">
+                <p className="text-xs text-muted-foreground">{t("asset.valuation")}</p>
+                <p className="text-sm font-mono text-foreground">
                   {formatCurrency(asset.valuationUsd)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-[#94A3B8]">Asset Type</p>
-                <p className="text-sm text-[#F1F5F9]">{asset.assetType}</p>
+                <p className="text-xs text-muted-foreground">{t("asset.assetType")}</p>
+                <p className="text-sm text-foreground">{asset.assetType}</p>
               </div>
               <div>
-                <p className="text-xs text-[#94A3B8]">Jurisdiction</p>
-                <p className="text-sm text-[#F1F5F9] flex items-center gap-1">
-                  <Globe className="h-3 w-3 text-[#94A3B8]" />
+                <p className="text-xs text-muted-foreground">{t("asset.jurisdiction")}</p>
+                <p className="text-sm text-foreground flex items-center gap-1">
+                  <Globe className="h-3 w-3 text-muted-foreground" />
                   {asset.jurisdiction}
                 </p>
               </div>
@@ -240,16 +242,16 @@ export default function AssetDetailPage() {
         </Card>
 
         {/* Token Info */}
-        <Card className="bg-[#111827] border-border">
+        <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle className="text-base text-[#F1F5F9] flex items-center gap-2">
+            <CardTitle className="text-base text-foreground flex items-center gap-2">
               <Coins className="h-4 w-4 text-gold" />
-              Token Info
+              {t("asset.tokenInfo")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="text-xs text-[#94A3B8]">Symbol</p>
+              <p className="text-xs text-muted-foreground">{t("asset.symbol")}</p>
               <p className="text-lg font-mono font-semibold text-gold">
                 {asset.symbol}
               </p>
@@ -257,40 +259,40 @@ export default function AssetDetailPage() {
             <Separator className="bg-border" />
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
-                <span className="text-[#94A3B8]">Max Supply</span>
-                <span className="font-mono text-[#F1F5F9]">
+                <span className="text-muted-foreground">{t("asset.maxSupply")}</span>
+                <span className="font-mono text-foreground">
                   {formatNumber(asset.maxSupply)}
                 </span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-[#94A3B8]">Issued</span>
-                <span className="font-mono text-[#F1F5F9]">
+                <span className="text-muted-foreground">{t("asset.issued")}</span>
+                <span className="font-mono text-foreground">
                   {formatNumber(asset.totalSupply)}
                 </span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-[#94A3B8]">Price / Token</span>
-                <span className="font-mono text-[#F1F5F9]">
+                <span className="text-muted-foreground">{t("asset.pricePerToken")}</span>
+                <span className="font-mono text-foreground">
                   {formatCurrency(pricePerToken)}
                 </span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-[#94A3B8]">Attestations</span>
-                <span className="font-mono text-[#F1F5F9]">
+                <span className="text-muted-foreground">{t("asset.attestations")}</span>
+                <span className="font-mono text-foreground">
                   {asset.attestationCount}
                 </span>
               </div>
             </div>
             <Separator className="bg-border" />
             <div>
-              <p className="text-xs text-[#94A3B8]">Mint Address</p>
-              <p className="text-xs font-mono text-[#94A3B8] break-all">
+              <p className="text-xs text-muted-foreground">{t("asset.mintAddress")}</p>
+              <p className="text-xs font-mono text-muted-foreground break-all">
                 {asset.mint}
               </p>
             </div>
             <div>
-              <p className="text-xs text-[#94A3B8]">Authority</p>
-              <p className="text-xs font-mono text-[#94A3B8] break-all">
+              <p className="text-xs text-muted-foreground">{t("asset.authority")}</p>
+              <p className="text-xs font-mono text-muted-foreground break-all">
                 {asset.authority}
               </p>
             </div>
@@ -299,33 +301,33 @@ export default function AssetDetailPage() {
       </div>
 
       {/* Attestation Documents */}
-      <Card className="bg-[#111827] border-border">
+      <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-base text-[#F1F5F9] flex items-center gap-2">
+          <CardTitle className="text-base text-foreground flex items-center gap-2">
             <FileCheck className="h-4 w-4 text-gold" />
-            Attestation Documents
+            {t("asset.attestationDocuments")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {attestations.length === 0 ? (
-            <p className="text-sm text-[#94A3B8] py-4 text-center">
-              No attestations submitted yet
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              {t("asset.noAttestations")}
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="text-[#94A3B8] text-xs">
-                    Document
+                  <TableHead className="text-muted-foreground text-xs">
+                    {t("asset.table.document")}
                   </TableHead>
-                  <TableHead className="text-[#94A3B8] text-xs">
-                    Hash
+                  <TableHead className="text-muted-foreground text-xs">
+                    {t("asset.table.hash")}
                   </TableHead>
-                  <TableHead className="text-[#94A3B8] text-xs">
-                    Date
+                  <TableHead className="text-muted-foreground text-xs">
+                    {t("asset.table.date")}
                   </TableHead>
-                  <TableHead className="text-[#94A3B8] text-xs text-right">
-                    Verify
+                  <TableHead className="text-muted-foreground text-xs text-right">
+                    {t("asset.table.verify")}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -333,16 +335,16 @@ export default function AssetDetailPage() {
                 {attestations.map((att) => (
                   <TableRow
                     key={att.pubkey}
-                    className="border-border hover:bg-[#1E293B]"
+                    className="border-border hover:bg-secondary"
                   >
-                    <TableCell className="text-sm text-[#F1F5F9]">
+                    <TableCell className="text-sm text-foreground">
                       {att.documentName}
                     </TableCell>
-                    <TableCell className="font-mono text-xs text-[#94A3B8]">
+                    <TableCell className="font-mono text-xs text-muted-foreground">
                       {att.documentHash.slice(0, 8)}...
                       {att.documentHash.slice(-8)}
                     </TableCell>
-                    <TableCell className="text-xs text-[#94A3B8]">
+                    <TableCell className="text-xs text-muted-foreground">
                       {new Date(att.timestamp * 1000).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
@@ -352,7 +354,7 @@ export default function AssetDetailPage() {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs text-gold hover:text-gold-dark transition-colors"
                       >
-                        Verify{" "}
+                        {t("asset.table.verify")}{" "}
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     </TableCell>

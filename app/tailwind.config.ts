@@ -43,12 +43,6 @@ const config: Config = {
         success: "#10B981",
         warning: "#F59E0B",
         danger: "#EF4444",
-        "bg-primary": "#0B0E14",
-        "bg-card": "#111827",
-        "bg-hover": "#1E293B",
-        "text-primary": "#F1F5F9",
-        "text-secondary": "#94A3B8",
-        "text-muted": "#475569",
       },
       fontFamily: {
         sans: ["Inter", "var(--font-sans)", "system-ui", "sans-serif"],

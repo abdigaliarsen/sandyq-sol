@@ -51,13 +51,6 @@ pub struct ClaimYield<'info> {
     )]
     pub vault_reward_account: InterfaceAccount<'info, TokenAccount>,
 
-    /// CHECK: yield vault PDA for signing
-    #[account(
-        seeds = [YIELD_VAULT_SEED, rwa_mint.key().as_ref()],
-        bump = yield_vault.bump,
-    )]
-    pub vault_authority: UncheckedAccount<'info>,
-
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }

@@ -9,7 +9,45 @@
     --font-heading: var(--font-sans);
     --font-sans: var(--font-sans);
   }
+
+  /* Light theme */
   :root {
+    --background: #F8FAFC;
+    --foreground: #0F172A;
+    --card: #FFFFFF;
+    --card-foreground: #0F172A;
+    --popover: #FFFFFF;
+    --popover-foreground: #0F172A;
+    --primary: #C8A04A;
+    --primary-foreground: #FFFFFF;
+    --secondary: #F1F5F9;
+    --secondary-foreground: #0F172A;
+    --muted: #F1F5F9;
+    --muted-foreground: #64748B;
+    --accent: #F1F5F9;
+    --accent-foreground: #0F172A;
+    --destructive: #EF4444;
+    --border: #E2E8F0;
+    --input: #E2E8F0;
+    --ring: #C8A04A;
+    --radius: 0.5rem;
+    --sidebar: #FFFFFF;
+    --sidebar-foreground: #0F172A;
+    --sidebar-primary: #C8A04A;
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: #F1F5F9;
+    --sidebar-accent-foreground: #0F172A;
+    --sidebar-border: #E2E8F0;
+    --sidebar-ring: #C8A04A;
+    --chart-1: #C8A04A;
+    --chart-2: #10B981;
+    --chart-3: #3B82F6;
+    --chart-4: #F59E0B;
+    --chart-5: #EF4444;
+  }
+
+  /* Dark theme */
+  .dark {
     --background: #0B0E14;
     --foreground: #F1F5F9;
     --card: #111827;
@@ -28,7 +66,6 @@
     --border: #1E293B;
     --input: #1E293B;
     --ring: #C8A04A;
-    --radius: 0.5rem;
     --sidebar: #111827;
     --sidebar-foreground: #F1F5F9;
     --sidebar-primary: #C8A04A;
@@ -37,12 +74,8 @@
     --sidebar-accent-foreground: #F1F5F9;
     --sidebar-border: #1E293B;
     --sidebar-ring: #C8A04A;
-    --chart-1: #C8A04A;
-    --chart-2: #10B981;
-    --chart-3: #3B82F6;
-    --chart-4: #F59E0B;
-    --chart-5: #EF4444;
   }
+
   * {
     @apply border-border;
   }
@@ -74,14 +107,14 @@
   background-color: #b8903a !important;
 }
 .wallet-adapter-modal-wrapper {
-  background-color: #111827 !important;
+  background-color: var(--card) !important;
 }
 .wallet-adapter-modal-title {
-  color: #F1F5F9 !important;
+  color: var(--foreground) !important;
 }
 .wallet-adapter-modal-list li {
-  background-color: #1E293B !important;
+  background-color: var(--secondary) !important;
 }
 .wallet-adapter-modal-button-close {
-  background-color: #1E293B !important;
+  background-color: var(--secondary) !important;
 }

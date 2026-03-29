@@ -28,13 +28,13 @@ pub fn handler(ctx: Context<ClaimYield>) -> Result<()> {
                 .checked_sub(investor_yield.reward_per_token_paid)
                 .unwrap_or(0)
         )
-        .unwrap()
+        .ok_or(RwaError::ArithmeticOverflow)?
         .checked_div(PRECISION)
-        .unwrap() as u64;
+        .ok_or(RwaError::ArithmeticOverflow)? as u64;
 
     let total_reward = pending
         .checked_add(investor_yield.rewards_earned)
-        .unwrap();
+        .ok_or(RwaError::ArithmeticOverflow)?;
 
     require!(total_reward > 0, RwaError::NoYieldAvailable);
 
@@ -59,7 +59,7 @@ pub fn handler(ctx: Context<ClaimYield>) -> Result<()> {
                 from: ctx.accounts.vault_reward_account.to_account_info(),
                 mint: ctx.accounts.reward_mint.to_account_info(),
                 to: ctx.accounts.investor_reward_account.to_account_info(),
-                authority: ctx.accounts.vault_authority.to_account_info(),
+                authority: ctx.accounts.yield_vault.to_account_info(),
             },
             &[seeds],
         ),

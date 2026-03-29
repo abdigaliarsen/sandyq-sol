@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 #[account]
 #[derive(InitSpace)]
 pub struct InvestorRecord {
+    pub authority: Pubkey,
     pub wallet: Pubkey,
     pub mint: Pubkey,
     pub is_kyc: bool,

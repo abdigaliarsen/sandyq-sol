@@ -6,6 +6,7 @@ use crate::contexts::ForceTransfer;
 use crate::constants::*;
 
 pub fn handler(ctx: Context<ForceTransfer>, amount: u64) -> Result<()> {
+    let was_frozen = ctx.accounts.source.is_frozen();
     let mint_key = ctx.accounts.mint.key();
 
     // thaw the source account first (it may be frozen after KYC revocation)
@@ -78,24 +79,26 @@ pub fn handler(ctx: Context<ForceTransfer>, amount: u64) -> Result<()> {
         &[delegate_seeds],
     )?;
 
-    // re-freeze the source account
-    let freeze_seeds: &[&[u8]] = &[
-        FREEZE_AUTHORITY_SEED,
-        mint_key.as_ref(),
-        &[ctx.bumps.freeze_authority],
-    ];
+    // re-freeze the source account only if it was frozen before
+    if was_frozen {
+        let freeze_seeds: &[&[u8]] = &[
+            FREEZE_AUTHORITY_SEED,
+            mint_key.as_ref(),
+            &[ctx.bumps.freeze_authority],
+        ];
 
-    token_2022::freeze_account(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            token_2022::FreezeAccount {
-                account: ctx.accounts.source.to_account_info(),
-                mint: ctx.accounts.mint.to_account_info(),
-                authority: ctx.accounts.freeze_authority.to_account_info(),
-            },
-            &[freeze_seeds],
-        ),
-    )?;
+        token_2022::freeze_account(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token_2022::FreezeAccount {
+                    account: ctx.accounts.source.to_account_info(),
+                    mint: ctx.accounts.mint.to_account_info(),
+                    authority: ctx.accounts.freeze_authority.to_account_info(),
+                },
+                &[freeze_seeds],
+            ),
+        )?;
+    }
 
     msg!("force transfer: {} tokens recalled", amount);
 

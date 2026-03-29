@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::contexts::SubmitAttestation;
+use crate::errors::RwaError;
 
 pub fn handler(
     ctx: Context<SubmitAttestation>,
@@ -17,7 +18,7 @@ pub fn handler(
     att.bump = ctx.bumps.attestation;
 
     let config = &mut ctx.accounts.asset_config;
-    config.attestation_count = config.attestation_count.checked_add(1).unwrap();
+    config.attestation_count = config.attestation_count.checked_add(1).ok_or(RwaError::ArithmeticOverflow)?;
 
     Ok(())
 }

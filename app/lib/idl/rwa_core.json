@@ -221,33 +221,6 @@
           "writable": true
         },
         {
-          "name": "vault_authority",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  121,
-                  105,
-                  101,
-                  108,
-                  100,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "rwa_mint"
-              }
-            ]
-          }
-        },
-        {
           "name": "token_program"
         },
         {
@@ -1112,6 +1085,11 @@
       "code": 6012,
       "name": "TransferNotAllowed",
       "msg": "Transfer not allowed by compliance"
+    },
+    {
+      "code": 6013,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithmetic overflow"
     }
   ],
   "types": [

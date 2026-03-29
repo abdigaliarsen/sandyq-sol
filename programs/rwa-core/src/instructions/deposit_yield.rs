@@ -23,14 +23,14 @@ pub fn handler(ctx: Context<DepositYield>, amount: u64) -> Result<()> {
     // update reward_per_token
     let reward_increment = (amount as u128)
         .checked_mul(PRECISION)
-        .unwrap()
+        .ok_or(RwaError::ArithmeticOverflow)?
         .checked_div(config.total_supply as u128)
-        .unwrap();
+        .ok_or(RwaError::ArithmeticOverflow)?;
 
     vault.reward_per_token_stored = vault.reward_per_token_stored
         .checked_add(reward_increment)
-        .unwrap();
-    vault.total_deposited = vault.total_deposited.checked_add(amount).unwrap();
+        .ok_or(RwaError::ArithmeticOverflow)?;
+    vault.total_deposited = vault.total_deposited.checked_add(amount).ok_or(RwaError::ArithmeticOverflow)?;
     vault.last_update_time = Clock::get()?.unix_timestamp;
 
     // transfer reward tokens from authority to vault

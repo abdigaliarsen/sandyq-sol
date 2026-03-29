@@ -15,14 +15,20 @@ pub fn handler(ctx: Context<IssueTokens>, amount: u64) -> Result<()> {
     );
 
     // independently check KYC by reading raw bytes from compliance-hook InvestorRecord
-    // layout after 8-byte discriminator: wallet(32) + mint(32) + is_kyc(1) + is_authority(1) + ...
+    // layout: discriminator(8) + authority(32) + wallet(32) + mint(32) + is_kyc(1) + is_authority(1)
     let record_data = ctx.accounts.investor_record.try_borrow_data()?;
-    require!(record_data.len() >= 8 + 32 + 32 + 1 + 1, RwaError::NotKycVerified);
+    require!(record_data.len() >= 8 + 32 + 32 + 32 + 1 + 1, RwaError::NotKycVerified);
 
-    let wallet = Pubkey::try_from(&record_data[8..40]).unwrap();
-    let mint_key = Pubkey::try_from(&record_data[40..72]).unwrap();
-    let is_kyc = record_data[72] != 0;
-    let is_authority = record_data[73] != 0;
+    // verify the account is owned by the compliance hook program (stronger than discriminator check)
+    let hook_id: Pubkey = COMPLIANCE_HOOK_PROGRAM_ID.parse().unwrap();
+    require!(ctx.accounts.investor_record.owner == &hook_id, RwaError::NotKycVerified);
+
+    let wallet = Pubkey::try_from(&record_data[40..72])
+        .map_err(|_| RwaError::NotKycVerified)?;
+    let mint_key = Pubkey::try_from(&record_data[72..104])
+        .map_err(|_| RwaError::NotKycVerified)?;
+    let is_kyc = record_data[104] != 0;
+    let is_authority = record_data[105] != 0;
 
     require!(is_kyc || is_authority, RwaError::NotKycVerified);
     require!(mint_key == ctx.accounts.mint.key(), RwaError::NotKycVerified);
@@ -52,7 +58,7 @@ pub fn handler(ctx: Context<IssueTokens>, amount: u64) -> Result<()> {
     )?;
 
     let config = &mut ctx.accounts.asset_config;
-    config.total_supply = config.total_supply.checked_add(amount).unwrap();
+    config.total_supply = config.total_supply.checked_add(amount).ok_or(RwaError::ArithmeticOverflow)?;
 
     Ok(())
 }

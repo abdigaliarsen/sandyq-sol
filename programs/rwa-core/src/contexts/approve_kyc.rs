@@ -36,7 +36,8 @@ pub struct ApproveKyc<'info> {
     )]
     pub freeze_authority: UncheckedAccount<'info>,
 
-    /// CHECK: compliance hook program
+    /// CHECK: compliance hook program, validated by address
+    #[account(address = COMPLIANCE_HOOK_PROGRAM_ID.parse::<Pubkey>().unwrap())]
     pub compliance_hook_program: UncheckedAccount<'info>,
 
     pub token_program: Interface<'info, TokenInterface>,

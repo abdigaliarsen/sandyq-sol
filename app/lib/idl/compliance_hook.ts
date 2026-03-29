@@ -384,6 +384,10 @@ export type ComplianceHook = {
         "kind": "struct",
         "fields": [
           {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
             "name": "wallet",
             "type": "pubkey"
           },
