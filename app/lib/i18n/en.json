@@ -178,6 +178,9 @@
   "admin.attestDocUri": "Document URI",
   "admin.attestDocHash": "SHA-256 Hash (optional, auto-computed)",
   "admin.submitAttestation": "Submit Attestation",
+  "admin.attestDescription": "Submit a document attestation on-chain for the selected asset.",
+  "admin.attestPlaceholderDocName": "Title Deed",
+  "admin.attestPlaceholderHash": "e.g. a1b2c3d4... (64 hex characters)",
 
   "asset.backToAssets": "Back to Assets",
   "asset.notFound": "Asset not found",

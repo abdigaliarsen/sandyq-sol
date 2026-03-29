@@ -7,6 +7,7 @@ import { AnchorProvider, BN } from "@coral-xyz/anchor";
 import {
   getAssociatedTokenAddressSync,
   TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
   ExtensionType,
   getMintLen,
   createInitializeTransferHookInstruction,
@@ -74,6 +75,7 @@ import {
   getInvestorRecordPda,
   getFreezeAuthorityPda,
   getMintAuthorityPda,
+  getYieldVaultPda,
   getExtraAccountMetaListPda,
   parseAnchorError,
 } from "@/lib/programs";
@@ -122,6 +124,7 @@ export default function AdminPage() {
   const [issueWallet, setIssueWallet] = useState("");
   const [issueAmount, setIssueAmount] = useState("");
   const [yieldAmount, setYieldAmount] = useState("");
+  const [yieldRewardMint, setYieldRewardMint] = useState("");
   const [forceFromWallet, setForceFromWallet] = useState("");
   const [forceToWallet, setForceToWallet] = useState("");
   const [forceAmount, setForceAmount] = useState("");
@@ -206,7 +209,7 @@ export default function AdminPage() {
     try {
       const mintPk = new PublicKey(mint);
       const allRecords = await complianceProgram.account.investorRecord.all([
-        { memcmp: { offset: 8 + 32, bytes: mintPk.toBase58() } },
+        { memcmp: { offset: 8 + 32 + 32, bytes: mintPk.toBase58() } },
       ]);
       const parsed: InvestorInfo[] = allRecords.map((acc: any) => ({
         wallet: acc.account.wallet.toBase58(),
@@ -304,7 +307,8 @@ export default function AdminPage() {
           tx1.feePayer = publicKey!;
           tx1.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
           tx1.partialSign(mintKeypair!);
-          await sendTransaction(tx1, connection);
+          const sig1 = await sendTransaction(tx1, connection);
+          await connection.confirmTransaction(sig1, "confirmed");
         } else if (stepIndex === 1) {
           // Step 2: Transfer mint authority to PDA
           const tx2 = new Transaction().add(
@@ -312,7 +316,8 @@ export default function AdminPage() {
               mint!, publicKey!, AuthorityType.MintTokens, mintAuthorityPda, [], TOKEN_2022_PROGRAM_ID
             ),
           );
-          await sendTransaction(tx2, connection);
+          const sig2 = await sendTransaction(tx2, connection);
+          await connection.confirmTransaction(sig2, "confirmed");
         } else if (stepIndex === 2) {
           // Step 3: Create asset config
           await (program.methods as any)
@@ -342,7 +347,8 @@ export default function AdminPage() {
               publicKey!, treasuryAta, publicKey!, mint!, TOKEN_2022_PROGRAM_ID
             ),
           );
-          await sendTransaction(ataTx, connection);
+          const sigAta = await sendTransaction(ataTx, connection);
+          await connection.confirmTransaction(sigAta, "confirmed");
 
           // Approve own KYC to thaw the account
           const [treasuryRecord] = getInvestorRecordPda(mint!, publicKey!);
@@ -597,7 +603,7 @@ export default function AdminPage() {
   }
 
   async function handleDepositYield() {
-    if (!publicKey || !selectedAsset || !yieldAmount) return;
+    if (!publicKey || !selectedAsset || !yieldAmount || !yieldRewardMint) return;
     setActionLoading("yield");
     try {
       const provider = new AnchorProvider(
@@ -606,12 +612,55 @@ export default function AdminPage() {
         { commitment: "confirmed" }
       );
       const program = getRwaCoreProgram(provider);
-      const mint = new PublicKey(selectedAsset.mint);
+      const rwaMint = new PublicKey(selectedAsset.mint);
+      const rewardMint = new PublicKey(yieldRewardMint);
+
+      // Determine which token program the reward mint uses
+      const rewardMintInfo = await connection.getAccountInfo(rewardMint);
+      const rewardTokenProgram = rewardMintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID)
+        ? TOKEN_2022_PROGRAM_ID
+        : TOKEN_PROGRAM_ID;
+
+      const [yieldVaultPda] = getYieldVaultPda(rwaMint);
+
+      const authorityRewardAccount = getAssociatedTokenAddressSync(
+        rewardMint,
+        publicKey,
+        false,
+        rewardTokenProgram
+      );
+      const vaultRewardAccount = getAssociatedTokenAddressSync(
+        rewardMint,
+        yieldVaultPda,
+        true,
+        rewardTokenProgram
+      );
+
+      // Ensure vault reward ATA exists
+      const vaultRewardInfo = await connection.getAccountInfo(vaultRewardAccount);
+      if (!vaultRewardInfo) {
+        const createVaultAtaTx = new Transaction().add(
+          createAssociatedTokenAccountInstruction(
+            publicKey,
+            vaultRewardAccount,
+            yieldVaultPda,
+            rewardMint,
+            rewardTokenProgram
+          )
+        );
+        const ataSig = await sendTransaction(createVaultAtaTx, connection);
+        await connection.confirmTransaction(ataSig, "confirmed");
+      }
 
       const tx = await (program.methods as any)
         .depositYield(new BN(yieldAmount))
         .accounts({
-          rwaMint: mint,
+          authority: publicKey,
+          rwaMint,
+          rewardMint,
+          authorityRewardAccount,
+          vaultRewardAccount,
+          tokenProgram: rewardTokenProgram,
         })
         .rpc();
 
@@ -1209,6 +1258,17 @@ export default function AdminPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2 md:col-span-3">
+                  <Label className="text-xs text-muted-foreground">
+                    Reward Mint Address
+                  </Label>
+                  <Input
+                    placeholder="Reward token mint (e.g. USDC mint address)"
+                    value={yieldRewardMint}
+                    onChange={(e) => setYieldRewardMint(e.target.value)}
+                    className="bg-background border-border text-foreground font-mono text-xs"
+                  />
+                </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label className="text-xs text-muted-foreground">
                     {t("admin.amountUsdcLamports")}
@@ -1237,7 +1297,7 @@ export default function AdminPage() {
                   <Button
                     onClick={handleDepositYield}
                     disabled={
-                      actionLoading === "yield" || !yieldAmount
+                      actionLoading === "yield" || !yieldAmount || !yieldRewardMint
                     }
                     className="w-full bg-gold text-primary-foreground hover:bg-gold-dark"
                   >
@@ -1373,25 +1433,25 @@ export default function AdminPage() {
             <CardHeader>
               <CardTitle className="text-base text-foreground flex items-center gap-2">
                 <FileText className="h-4 w-4 text-gold" />
-                Submit Attestation
+                {t("admin.submitAttestation")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-xs text-muted-foreground/60">
-                Submit a document attestation on-chain for the selected asset. The document hash is auto-computed from the URI using SHA-256, or you can provide a manual 32-byte hex hash.
+                {t("admin.attestDescription")}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Document Name</Label>
+                  <Label className="text-xs text-muted-foreground">{t("admin.attestDocName")}</Label>
                   <Input
-                    placeholder="Title Deed"
+                    placeholder={t("admin.attestPlaceholderDocName")}
                     value={attestDocName}
                     onChange={(e) => setAttestDocName(e.target.value)}
                     className="bg-background border-border text-foreground text-xs"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Document URI</Label>
+                  <Label className="text-xs text-muted-foreground">{t("admin.attestDocUri")}</Label>
                   <Input
                     placeholder="ipfs://..."
                     value={attestDocUri}
@@ -1402,10 +1462,10 @@ export default function AdminPage() {
               </div>
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">
-                  Document Hash (optional, 64-char hex; auto-computed from URI if empty)
+                  {t("admin.attestDocHash")}
                 </Label>
                 <Input
-                  placeholder="e.g. a1b2c3d4... (64 hex characters)"
+                  placeholder={t("admin.attestPlaceholderHash")}
                   value={attestDocHashManual}
                   onChange={(e) => setAttestDocHashManual(e.target.value)}
                   className="bg-background border-border text-foreground font-mono text-xs"
@@ -1425,7 +1485,7 @@ export default function AdminPage() {
                 ) : (
                   <FileText className="h-3 w-3 mr-1" />
                 )}
-                Submit Attestation
+                {t("admin.submitAttestation")}
               </Button>
             </CardContent>
           </Card>

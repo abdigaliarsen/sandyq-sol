@@ -212,7 +212,7 @@ function GlassCard({
 }) {
   return (
     <motion.div
-      className={`relative rounded-xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-xl p-6 ${className}`}
+      className={`relative rounded-xl border border-foreground/[0.06] bg-foreground/[0.02] backdrop-blur-xl p-6 ${className}`}
       whileHover={
         hover
           ? {
@@ -552,7 +552,7 @@ export default function HomePage() {
             )}
             <button
               onClick={scrollToContent}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-8 py-3.5 text-base text-muted-foreground hover:border-gold/30 hover:text-gold transition-all duration-300"
+              className="inline-flex items-center gap-2 rounded-xl border border-foreground/10 px-8 py-3.5 text-base text-muted-foreground hover:border-gold/30 hover:text-gold transition-all duration-300"
             >
               {t("landing.learnMore")} <ChevronDown className="h-4 w-4" />
             </button>
@@ -569,7 +569,7 @@ export default function HomePage() {
               (tag) => (
                 <span
                   key={tag}
-                  className="px-3 py-1.5 rounded-full border border-white/[0.06] bg-white/[0.02] text-xs text-muted-foreground font-mono"
+                  className="px-3 py-1.5 rounded-full border border-foreground/[0.06] bg-foreground/[0.02] text-xs text-muted-foreground font-mono"
                 >
                   {tag}
                 </span>
@@ -623,7 +623,7 @@ export default function HomePage() {
               >
                 <GlassCard className="h-full relative overflow-hidden group">
                   {/* Step number watermark */}
-                  <span className="absolute -top-2 -right-1 text-6xl font-bold text-white/[0.03] group-hover:text-gold/[0.06] transition-colors duration-500 select-none">
+                  <span className="absolute -top-2 -right-1 text-6xl font-bold text-foreground/[0.03] group-hover:text-gold/[0.06] transition-colors duration-500 select-none">
                     {step.step}
                   </span>
                   <div className="relative z-10">
@@ -744,7 +744,7 @@ export default function HomePage() {
 
           {/* Architecture Visualization */}
           <motion.div
-            className="relative rounded-2xl border border-white/[0.06] bg-white/[0.01] backdrop-blur-sm p-8 sm:p-12 overflow-hidden"
+            className="relative rounded-2xl border border-foreground/[0.06] bg-foreground/[0.01] backdrop-blur-sm p-8 sm:p-12 overflow-hidden"
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
@@ -792,7 +792,7 @@ export default function HomePage() {
               </div>
 
               {/* Stats */}
-              <div className="flex flex-wrap justify-center gap-8 mt-12 pt-8 border-t border-white/[0.06]">
+              <div className="flex flex-wrap justify-center gap-8 mt-12 pt-8 border-t border-foreground/[0.06]">
                 <div className="text-center">
                   <div className="text-2xl font-bold">
                     <AnimatedCounter value={4} />
@@ -883,7 +883,7 @@ export default function HomePage() {
         </div>
 
         {/* Bottom border */}
-        <div className="max-w-6xl mx-auto mt-24 pt-8 border-t border-white/[0.06]">
+        <div className="max-w-6xl mx-auto mt-24 pt-8 border-t border-foreground/[0.06]">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground/60">
             <p>{t("landing.footerTagline")}</p>
             <p className="font-mono">{t("landing.footerBuiltOn")}</p>

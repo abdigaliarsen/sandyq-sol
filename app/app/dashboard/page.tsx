@@ -7,8 +7,11 @@ import { AnchorProvider, BN } from "@coral-xyz/anchor";
 import {
   getAssociatedTokenAddressSync,
   TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
   createTransferCheckedInstruction,
+  createAssociatedTokenAccountInstruction,
   addExtraAccountMetasForExecute,
+  getAccount,
 } from "@solana/spl-token";
 import dynamic from "next/dynamic";
 import {
@@ -54,6 +57,7 @@ import {
   getComplianceHookProgram,
   getInvestorRecordPda,
   getInvestorYieldPda,
+  getYieldVaultPda,
   getExtraAccountMetaListPda,
   parseAnchorError,
 } from "@/lib/programs";
@@ -209,18 +213,110 @@ export default function DashboardPage() {
         { commitment: "confirmed" }
       );
       const program = getRwaCoreProgram(provider);
-      const mint = new PublicKey(holdings[0].mint);
 
-      const tx = await (program.methods as any)
-        .claimYield()
-        .accounts({
-          rwaMint: mint,
-        })
-        .rpc();
+      for (const holding of holdings) {
+        const rwaMint = new PublicKey(holding.mint);
 
-      toast.success(t("dashboard.toast.yieldClaimed"), {
-        description: `TX: ${truncateAddress(tx, 8)}`,
-      });
+        // Read YieldVault account to discover the reward mint
+        const [yieldVaultPda] = getYieldVaultPda(rwaMint);
+        let vaultData: any;
+        try {
+          vaultData = await (program.account as any).yieldVault.fetch(yieldVaultPda);
+        } catch {
+          // No yield vault for this asset, skip
+          continue;
+        }
+
+        // The YieldVault doesn't store rewardMint directly in the IDL struct,
+        // but the vault's reward ATA tells us which mint. We need to find the
+        // reward mint. Since the test uses TOKEN_2022_PROGRAM_ID for reward,
+        // we read the vault reward token account to discover the mint.
+        // Actually, looking at the IDL, YieldVault has: mint, authority, reward_per_token_stored, total_deposited, last_update_time, bump.
+        // The reward mint is passed as an account to depositYield/claimYield.
+        // We need to find it by looking at token accounts owned by the yieldVaultPda.
+        const vaultTokenAccounts = await connection.getTokenAccountsByOwner(
+          yieldVaultPda,
+          { programId: TOKEN_2022_PROGRAM_ID }
+        );
+
+        if (vaultTokenAccounts.value.length === 0) {
+          // Try regular SPL token program
+          const vaultTokenAccountsSpl = await connection.getTokenAccountsByOwner(
+            yieldVaultPda,
+            { programId: TOKEN_PROGRAM_ID }
+          );
+          if (vaultTokenAccountsSpl.value.length === 0) continue;
+        }
+
+        // Parse the first token account to get the reward mint
+        // Token account layout: mint is at offset 0, 32 bytes
+        const tokenAccData = vaultTokenAccounts.value.length > 0
+          ? vaultTokenAccounts.value[0].account.data
+          : (await connection.getTokenAccountsByOwner(yieldVaultPda, { programId: TOKEN_PROGRAM_ID })).value[0].account.data;
+        const rewardMint = new PublicKey(tokenAccData.slice(0, 32));
+
+        // Determine which token program the reward mint uses
+        const rewardMintInfo = await connection.getAccountInfo(rewardMint);
+        const rewardTokenProgram = rewardMintInfo?.owner.equals(TOKEN_2022_PROGRAM_ID)
+          ? TOKEN_2022_PROGRAM_ID
+          : TOKEN_PROGRAM_ID;
+
+        // Derive ATAs
+        const investorRwaAccount = getAssociatedTokenAddressSync(
+          rwaMint,
+          publicKey,
+          false,
+          TOKEN_2022_PROGRAM_ID
+        );
+        const investorRewardAccount = getAssociatedTokenAddressSync(
+          rewardMint,
+          publicKey,
+          false,
+          rewardTokenProgram
+        );
+        const vaultRewardAccount = getAssociatedTokenAddressSync(
+          rewardMint,
+          yieldVaultPda,
+          true,
+          rewardTokenProgram
+        );
+
+        // Ensure investor reward ATA exists
+        try {
+          await getAccount(connection, investorRewardAccount, "confirmed", rewardTokenProgram);
+        } catch {
+          // Create the investor reward ATA first
+          const createAtaTx = new Transaction().add(
+            createAssociatedTokenAccountInstruction(
+              publicKey,
+              investorRewardAccount,
+              publicKey,
+              rewardMint,
+              rewardTokenProgram
+            )
+          );
+          const ataSig = await sendTransaction(createAtaTx, connection);
+          await connection.confirmTransaction(ataSig, "confirmed");
+        }
+
+        const tx = await (program.methods as any)
+          .claimYield()
+          .accounts({
+            investor: publicKey,
+            rwaMint,
+            rewardMint,
+            investorRwaAccount,
+            investorRewardAccount,
+            vaultRewardAccount,
+            tokenProgram: rewardTokenProgram,
+          })
+          .rpc();
+
+        toast.success(t("dashboard.toast.yieldClaimed"), {
+          description: `TX: ${truncateAddress(tx, 8)}`,
+        });
+      }
+
       loadDashboard();
     } catch (e: any) {
       toast.error(parseAnchorError(e));
@@ -267,6 +363,21 @@ export default function DashboardPage() {
       tx.add(
         ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 })
       );
+
+      // Check if recipient ATA exists, create if not
+      try {
+        await getAccount(connection, destAta, "confirmed", TOKEN_2022_PROGRAM_ID);
+      } catch {
+        tx.add(
+          createAssociatedTokenAccountInstruction(
+            publicKey,
+            destAta,
+            recipient,
+            mint,
+            TOKEN_2022_PROGRAM_ID
+          )
+        );
+      }
 
       const transferIx = createTransferCheckedInstruction(
         sourceAta,

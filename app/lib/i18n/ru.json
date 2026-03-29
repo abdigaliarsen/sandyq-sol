@@ -178,6 +178,9 @@
   "admin.attestDocUri": "URI документа",
   "admin.attestDocHash": "SHA-256 хеш (необязательно, вычисляется автоматически)",
   "admin.submitAttestation": "Подать аттестацию",
+  "admin.attestDescription": "Подать аттестацию документа в блокчейн для выбранного актива.",
+  "admin.attestPlaceholderDocName": "Свидетельство о праве собственности",
+  "admin.attestPlaceholderHash": "напр. a1b2c3d4... (64 hex символа)",
 
   "asset.backToAssets": "Назад к активам",
   "asset.notFound": "Актив не найден",
