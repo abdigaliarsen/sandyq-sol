@@ -205,5 +205,17 @@
   "asset.table.hash": "Hash",
   "asset.table.date": "Date",
   "asset.table.verify": "Verify",
-  "header.disconnectWallet": "Disconnect wallet"
+  "header.disconnectWallet": "Disconnect wallet",
+
+  "dashboard.availableAssets": "Available Assets",
+  "dashboard.availableAssetsDesc": "Browse tokenized assets on the platform",
+  "dashboard.noAssets": "No assets available yet",
+  "dashboard.pricePerToken": "Price / Token",
+  "dashboard.viewAsset": "View Details",
+  "dashboard.requestAccess": "Request Access",
+  "asset.requestAccess": "Request Access",
+  "asset.requestAccessDesc": "Complete KYC verification to invest in this asset. Contact the administrator to register.",
+  "asset.requestSent": "Access request noted. Contact the asset administrator for KYC verification.",
+  "asset.totalYield": "Net Yield",
+  "asset.tokensIssued": "Tokens Issued"
 }

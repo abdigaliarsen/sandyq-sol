@@ -18,6 +18,7 @@ import {
   createAssociatedTokenAccountInstruction,
   AccountState,
   AuthorityType,
+  getAccount,
 } from "@solana/spl-token";
 import dynamic from "next/dynamic";
 import {
@@ -106,6 +107,71 @@ interface InvestorInfo {
   recordPda: string;
 }
 
+function AccessRequests({ selectedAsset, onRegister }: { selectedAsset: AssetInfo | null; onRegister: (wallet: string) => void }) {
+  const [requests, setRequests] = useState<Array<{ wallet: string; mint: string; assetName: string; symbol: string; timestamp: number }>>([]);
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    const key = "sandyq-access-requests";
+    const stored = JSON.parse(localStorage.getItem(key) || "[]");
+    setRequests(stored.filter((r: any) => !selectedAsset || r.mint === selectedAsset.mint));
+  }, [selectedAsset]);
+
+  const dismissRequest = (wallet: string) => {
+    const key = "sandyq-access-requests";
+    const stored = JSON.parse(localStorage.getItem(key) || "[]");
+    const updated = stored.filter((r: any) => r.wallet !== wallet);
+    localStorage.setItem(key, JSON.stringify(updated));
+    setRequests(updated.filter((r: any) => !selectedAsset || r.mint === selectedAsset.mint));
+  };
+
+  if (requests.length === 0) return null;
+
+  return (
+    <Card className="bg-card border-warning/30">
+      <CardHeader>
+        <CardTitle className="text-base text-warning flex items-center gap-2">
+          <UserPlus className="h-4 w-4" />
+          Access Requests ({requests.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow className="border-border hover:bg-transparent">
+              <TableHead className="text-muted-foreground text-xs">{t("admin.table.wallet")}</TableHead>
+              <TableHead className="text-muted-foreground text-xs">{t("asset.table.date")}</TableHead>
+              <TableHead className="text-muted-foreground text-xs text-right">{t("admin.table.actions")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {requests.map((req) => (
+              <TableRow key={req.wallet} className="border-border hover:bg-secondary">
+                <TableCell className="font-mono text-xs text-foreground">{truncateAddress(req.wallet, 8)}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{new Date(req.timestamp).toLocaleDateString()}</TableCell>
+                <TableCell className="text-right space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-success/30 text-success hover:bg-success/10 text-xs h-7"
+                    onClick={() => {
+                      onRegister(req.wallet);
+                      dismissRequest(req.wallet);
+                    }}
+                  >
+                    <ShieldCheck className="h-3 w-3 mr-1" />
+                    {t("admin.register")}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AdminPage() {
   const { connection } = useConnection();
   const wallet = useWallet();
@@ -118,6 +184,9 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [attestations, setAttestations] = useState<Array<{
+    pubkey: string; documentName: string; documentHash: string; documentUri: string; timestamp: number;
+  }>>([]);
 
   // Form states
   const [registerWallet, setRegisterWallet] = useState("");
@@ -196,6 +265,7 @@ export default function AdminPage() {
           parsed[0].mint,
           complianceProgram
         );
+        await loadAttestations(parsed[0].mint, program);
       }
     } catch (e) {
       console.error("Admin load error:", e);
@@ -221,6 +291,24 @@ export default function AdminPage() {
       setInvestors(parsed);
     } catch {
       setInvestors([]);
+    }
+  }
+
+  async function loadAttestations(mint: string, program: any) {
+    try {
+      const mintPk = new PublicKey(mint);
+      const all = await (program.account as any).attestation.all([
+        { memcmp: { offset: 8, bytes: mintPk.toBase58() } },
+      ]);
+      setAttestations(all.map((acc: any) => ({
+        pubkey: acc.publicKey.toBase58(),
+        documentName: acc.account.documentName,
+        documentHash: Buffer.from(acc.account.documentHash).toString("hex"),
+        documentUri: acc.account.documentUri,
+        timestamp: acc.account.timestamp.toNumber(),
+      })));
+    } catch {
+      setAttestations([]);
     }
   }
 
@@ -417,8 +505,12 @@ export default function AdminPage() {
         documentHash = Array.from(new Uint8Array(hashBuffer));
       }
 
+      // Pass hash as Array<number> with exactly 32 bytes
+      const hashArray = Array.from(documentHash).slice(0, 32);
+      while (hashArray.length < 32) hashArray.push(0);
+
       await (program.methods as any)
-        .submitAttestation(documentHash, attestDocName, attestDocUri)
+        .submitAttestation(hashArray, attestDocName, attestDocUri)
         .accounts({ authority: publicKey, mint })
         .rpc();
 
@@ -426,6 +518,9 @@ export default function AdminPage() {
       setAttestDocName("");
       setAttestDocUri("");
       setAttestDocHashManual("");
+      // reload attestations
+      const reloadProvider = new AnchorProvider(connection, wallet as any, { commitment: "confirmed" });
+      await loadAttestations(selectedAsset.mint, getRwaCoreProgram(reloadProvider));
     } catch (e: any) {
       toast.error(parseAnchorError(e));
     }
@@ -488,6 +583,23 @@ export default function AdminPage() {
         TOKEN_2022_PROGRAM_ID
       );
       const [freezeAuth] = getFreezeAuthorityPda(mint);
+
+      // Ensure investor ATA exists before approving KYC (approve thaws the account)
+      try {
+        await getAccount(connection, investorAta, "confirmed", TOKEN_2022_PROGRAM_ID);
+      } catch {
+        const createAtaTx = new Transaction().add(
+          createAssociatedTokenAccountInstruction(
+            publicKey,
+            investorAta,
+            investorWallet,
+            mint,
+            TOKEN_2022_PROGRAM_ID
+          )
+        );
+        const ataSig = await sendTransaction(createAtaTx, connection);
+        await connection.confirmTransaction(ataSig, "confirmed");
+      }
 
       const tx = await (program.methods as any)
         .approveKyc()
@@ -1047,6 +1159,31 @@ export default function AdminPage() {
 
         {/* INVESTORS TAB */}
         <TabsContent value="investors" className="space-y-4">
+          {/* Access Requests from localStorage */}
+          <AccessRequests
+            selectedAsset={selectedAsset}
+            onRegister={async (walletAddr) => {
+              if (!publicKey || !selectedAsset) return;
+              setActionLoading("register");
+              try {
+                const provider = new AnchorProvider(connection, wallet as any, { commitment: "confirmed" });
+                const program = getRwaCoreProgram(provider);
+                const mint = new PublicKey(selectedAsset.mint);
+                const investorWallet = new PublicKey(walletAddr);
+                const [investorPda] = getInvestorRecordPda(mint, investorWallet);
+                await (program.methods as any)
+                  .registerInvestor()
+                  .accounts({ authority: publicKey, mint, wallet: investorWallet, investorRecord: investorPda, complianceHookProgram: COMPLIANCE_HOOK_PROGRAM_ID })
+                  .rpc();
+                toast.success(t("admin.toast.investorRegistered"));
+                loadAdmin();
+              } catch (e: any) {
+                toast.error(parseAnchorError(e));
+              }
+              setActionLoading(null);
+            }}
+          />
+
           {/* Register new investor */}
           <Card className="bg-card border-border">
             <CardHeader>
@@ -1487,6 +1624,50 @@ export default function AdminPage() {
                 )}
                 {t("admin.submitAttestation")}
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Existing attestations */}
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-base text-foreground flex items-center gap-2">
+                <FileText className="h-4 w-4 text-gold" />
+                {t("asset.attestationDocuments")} ({attestations.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {attestations.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  {t("asset.noAttestations")}
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="text-muted-foreground text-xs">{t("asset.table.document")}</TableHead>
+                      <TableHead className="text-muted-foreground text-xs">{t("asset.table.hash")}</TableHead>
+                      <TableHead className="text-muted-foreground text-xs">URI</TableHead>
+                      <TableHead className="text-muted-foreground text-xs">{t("asset.table.date")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {attestations.map((att) => (
+                      <TableRow key={att.pubkey} className="border-border hover:bg-secondary">
+                        <TableCell className="text-sm text-foreground">{att.documentName}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {att.documentHash.slice(0, 8)}...{att.documentHash.slice(-8)}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground max-w-[200px] truncate">
+                          {att.documentUri}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {new Date(att.timestamp * 1000).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

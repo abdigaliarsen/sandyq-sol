@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { useConnection } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import Link from "next/link";
@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   Table,
@@ -37,8 +38,10 @@ import {
   formatNumber,
   truncateAddress,
 } from "@/lib/constants";
-import { getRwaCoreProgram, getAssetConfigPda } from "@/lib/programs";
+import { getRwaCoreProgram, getComplianceHookProgram, getAssetConfigPda, getInvestorRecordPda } from "@/lib/programs";
 import { useTranslation } from "@/lib/i18n";
+import { toast } from "sonner";
+import { UserPlus, ShieldCheck } from "lucide-react";
 
 interface AssetDetail {
   name: string;
@@ -67,10 +70,12 @@ export default function AssetDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { connection } = useConnection();
+  const { publicKey } = useWallet();
   const { t } = useTranslation();
   const [asset, setAsset] = useState<AssetDetail | null>(null);
   const [attestations, setAttestations] = useState<AttestationData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [kycStatus, setKycStatus] = useState<"verified" | "pending" | "not_registered" | null>(null);
 
   useEffect(() => {
     loadAsset();
@@ -134,6 +139,18 @@ export default function AssetDetailPage() {
         })
       );
       setAttestations(parsed);
+
+      // Check KYC status
+      if (publicKey) {
+        const complianceProgram = getComplianceHookProgram(provider);
+        const [investorPda] = getInvestorRecordPda(mint, publicKey);
+        try {
+          const record = await (complianceProgram.account as any).investorRecord.fetch(investorPda);
+          setKycStatus(record.isKyc ? "verified" : "pending");
+        } catch {
+          setKycStatus("not_registered");
+        }
+      }
     } catch (e) {
       console.error("Failed to load asset:", e);
     }
@@ -167,7 +184,7 @@ export default function AssetDetailPage() {
     <div className="space-y-6">
       {/* Back nav */}
       <Link
-        href="/"
+        href="/dashboard"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-gold transition-colors"
       >
         <ArrowLeft className="h-3 w-3" /> {t("asset.backToAssets")}
@@ -195,7 +212,41 @@ export default function AssetDetailPage() {
           </div>
           <h1 className="text-2xl font-bold text-foreground">{asset.name}</h1>
         </div>
+        <div>
+          {kycStatus === "verified" ? (
+            <div className="flex items-center gap-2 text-success text-sm">
+              <ShieldCheck className="h-4 w-4" />
+              {t("dashboard.kyc.verified")}
+            </div>
+          ) : kycStatus === "not_registered" || kycStatus === "pending" ? (
+            <Button
+              onClick={() => {
+                if (!publicKey) return;
+                const key = "sandyq-access-requests";
+                const existing = JSON.parse(localStorage.getItem(key) || "[]");
+                const already = existing.some((r: any) => r.wallet === publicKey.toBase58() && r.mint === asset.mint);
+                if (!already) {
+                  existing.push({ wallet: publicKey.toBase58(), mint: asset.mint, assetName: asset.name, symbol: asset.symbol, timestamp: Date.now() });
+                  localStorage.setItem(key, JSON.stringify(existing));
+                }
+                toast.success(t("asset.requestSent"));
+              }}
+              className="bg-gold text-primary-foreground hover:bg-gold-dark"
+            >
+              <UserPlus className="h-4 w-4 mr-2" />
+              {t("asset.requestAccess")}
+            </Button>
+          ) : null}
+        </div>
       </div>
+
+      {/* Request Access Banner for non-KYC users */}
+      {kycStatus === "not_registered" && (
+        <div className="flex items-center gap-3 rounded-lg border border-warning/20 bg-warning/5 p-4">
+          <UserPlus className="h-5 w-5 text-warning" />
+          <p className="text-sm text-muted-foreground">{t("asset.requestAccessDesc")}</p>
+        </div>
+      )}
 
       {/* Info Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -349,7 +400,9 @@ export default function AssetDetailPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <a
-                        href={att.documentUri}
+                        href={att.documentUri.startsWith("ipfs://")
+                          ? `${process.env.NEXT_PUBLIC_IPFS_GATEWAY || "http://localhost:8080"}/ipfs/${att.documentUri.slice(7)}`
+                          : att.documentUri}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs text-gold hover:text-gold-dark transition-colors"

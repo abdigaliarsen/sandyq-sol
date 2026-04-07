@@ -355,6 +355,8 @@ function ComplianceFlowDiagram({ labels }: { labels: string[] }) {
 
 /* ─── MAIN PAGE ─── */
 export default function HomePage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const wallet = useWallet();
   const { t } = useTranslation();
   const { scrollYProgress } = useScroll();
@@ -541,7 +543,7 @@ export default function HomePage() {
             transition={{ delay: 1.5, duration: 0.8 }}
           >
             {!wallet.publicKey ? (
-              <WalletMultiButton />
+              mounted ? <WalletMultiButton /> : null
             ) : (
               <Link
                 href="/dashboard"
@@ -845,7 +847,7 @@ export default function HomePage() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               {!wallet.publicKey ? (
-                <WalletMultiButton />
+                mounted ? <WalletMultiButton /> : null
               ) : (
                 <Link
                   href="/dashboard"

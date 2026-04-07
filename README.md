@@ -99,14 +99,17 @@ npm run dev
 
 ## Demo Flow
 
-1. **Create Asset** — Admin creates a tokenized asset (Token-2022 mint with TransferHook, PermanentDelegate, DefaultAccountState, MetadataPointer, TokenMetadata)
-2. **Register Investors** — Admin registers investor wallets and approves KYC; accounts are unfrozen upon approval
-3. **Issue Tokens** — Admin mints tokens to verified investors
-4. **Compliant Transfer** — Investors transfer tokens to each other; the Transfer Hook verifies both sender and receiver have `is_kyc = true`
-5. **Blocked Transfer** — A transfer to a non-KYC wallet is **rejected by the protocol** at the blockchain level
-6. **Deposit Yield** — Admin deposits rental income; global reward-per-token accumulator is updated
-7. **Claim Yield** — Investors claim their pro-rata share of accumulated yield
-8. **Force Recall** — Admin can recall tokens from any account via PermanentDelegate for regulatory compliance
+1. **Browse Assets** — Any user can browse available tokenized assets and view property details, attestation documents
+2. **Request Access** — Non-KYC users request access to invest; admin sees pending requests in dashboard
+3. **Create Asset** — Admin creates a tokenized asset (Token-2022 mint with TransferHook, PermanentDelegate, DefaultAccountState, MetadataPointer, TokenMetadata)
+4. **Register & KYC Investors** — Admin registers investor wallets and approves KYC; accounts are unfrozen upon approval
+5. **Issue Tokens** — Admin mints tokens to verified investors
+6. **Compliant Transfer** — Investors transfer tokens to each other; the Transfer Hook verifies both sender and receiver have `is_kyc = true`
+7. **Blocked Transfer** — A transfer to a non-KYC wallet is **rejected by the protocol** at the blockchain level
+8. **Submit Attestation** — Admin submits document attestations (title deed, appraisal, etc.) with IPFS URIs; SHA-256 hashes stored on-chain
+9. **Deposit Yield** — Admin deposits rental income; global reward-per-token accumulator is updated
+10. **Claim Yield** — Investors claim their pro-rata share of accumulated yield
+11. **Force Recall** — Admin can recall tokens from any account via PermanentDelegate for regulatory compliance
 
 ### Demo Scenario: Tokenized Commercial Property in Almaty
 
@@ -122,12 +125,13 @@ The demo uses a realistic commercial property: **Samal Business Centre, Unit 4B*
 - **On-chain KYC** — soulbound InvestorRecord PDAs (per-investor, per-asset)
 - **Transfer Hook enforcement** — compliance checked on every transfer by the blockchain itself
 - **Pro-rata yield distribution** — reward-per-token accumulator pattern (Synthetix model)
-- **Immutable attestations** — document hash + URI stored on-chain with timestamp
-- **Admin dashboard** — 5-step asset creation wizard, investor management, yield distribution, compliance recall
-- **Investor dashboard** — holdings, yield claims, transfer history
-- **i18n** — English, Russian, Kazakh
+- **Immutable attestations** — document hash + URI stored on-chain with timestamp, documents on IPFS
+- **Asset discovery** — browse available assets, request access for KYC verification
+- **Admin dashboard** — 5-step asset creation wizard, investor management, access request queue, yield distribution, compliance recall, attestation management
+- **Investor dashboard** — holdings, yield claims, token transfers, available assets browsing
+- **i18n** — English, Russian, Kazakh (full coverage, 220+ translation keys)
 - **Theming** — Light / Dark / System
-- **Docker Compose** — frontend + self-hosted IPFS node
+- **Docker Compose** — frontend + self-hosted IPFS node (Kubo)
 
 ---
 

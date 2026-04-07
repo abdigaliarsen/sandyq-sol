@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { NETWORK, truncateAddress } from "@/lib/constants";
@@ -19,6 +19,8 @@ const WalletMultiButton = dynamic(
 );
 
 export function Header() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const { publicKey, disconnect, connected } = useWallet();
   const { t } = useTranslation();
 
@@ -44,8 +46,8 @@ export function Header() {
       <div className="flex items-center gap-2">
         <ThemeToggle />
         <LanguageSwitcher />
-        <WalletMultiButton />
-        {connected && (
+        {mounted && <WalletMultiButton />}
+        {mounted && connected && (
           <Button
             variant="outline"
             size="sm"

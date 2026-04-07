@@ -13,6 +13,7 @@ import {
   addExtraAccountMetasForExecute,
   getAccount,
 } from "@solana/spl-token";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
   Card,
@@ -60,6 +61,7 @@ import {
   getYieldVaultPda,
   getExtraAccountMetaListPda,
   parseAnchorError,
+  getAssetConfigPda,
 } from "@/lib/programs";
 
 const WalletMultiButton = dynamic(
@@ -100,6 +102,12 @@ export default function DashboardPage() {
   const [transferRecipient, setTransferRecipient] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
 
+  // All available assets
+  const [allAssets, setAllAssets] = useState<Array<{
+    mint: string; name: string; symbol: string; valuationUsd: number;
+    maxSupply: number; totalSupply: number; isActive: boolean;
+  }>>([]);
+
   useEffect(() => {
     if (publicKey) {
       loadDashboard();
@@ -124,6 +132,17 @@ export default function DashboardPage() {
       const allAssets = await (
         rwaCoreProgram.account as any
       ).assetConfig.all();
+
+      // save all assets for browse section
+      setAllAssets(allAssets.map((acc: any) => ({
+        mint: acc.account.mint.toBase58(),
+        name: acc.account.name,
+        symbol: acc.account.symbol,
+        valuationUsd: acc.account.valuationUsd.toNumber(),
+        maxSupply: acc.account.maxSupply.toNumber(),
+        totalSupply: acc.account.totalSupply.toNumber(),
+        isActive: acc.account.isActive,
+      })));
 
       // check KYC for first asset
       if (allAssets.length > 0) {
@@ -151,7 +170,7 @@ export default function DashboardPage() {
         const mint = config.mint;
         const pricePerToken =
           config.maxSupply.toNumber() > 0
-            ? config.valuationUsd.toNumber() / config.maxSupply.toNumber()
+            ? config.valuationUsd.toNumber() / 100 / config.maxSupply.toNumber()
             : 0;
 
         try {
@@ -178,16 +197,42 @@ export default function DashboardPage() {
           // no token account
         }
 
-        // check yield
+        // check yield: calculate from YieldVault + InvestorYield
         try {
-          const [yieldPda] = getInvestorYieldPda(mint, publicKey);
-          const yieldData = await (
+          const [vaultPda] = getYieldVaultPda(mint);
+          const vaultData = await (
             rwaCoreProgram.account as any
-          ).investorYield.fetch(yieldPda);
-          totalUnclaimed += yieldData.rewardsEarned.toNumber();
-          totalEarnedVal += yieldData.rewardsEarned.toNumber();
+          ).yieldVault.fetch(vaultPda);
+
+          const rewardPerTokenStored = vaultData.rewardPerTokenStored as BN;
+          let rewardPerTokenPaid = new BN(0);
+          let storedRewards = 0;
+
+          try {
+            const [yieldPda] = getInvestorYieldPda(mint, publicKey);
+            const yieldData = await (
+              rwaCoreProgram.account as any
+            ).investorYield.fetch(yieldPda);
+            rewardPerTokenPaid = yieldData.rewardPerTokenPaid as BN;
+            storedRewards = yieldData.rewardsEarned.toNumber();
+          } catch {
+            // InvestorYield PDA doesn't exist yet — first-time claimer
+          }
+
+          // Find investor's balance for this asset
+          const holding = holdingsArr.find((h) => h.mint === mint.toBase58());
+          const balance = holding ? holding.balance : 0;
+
+          // pending = balance * (rewardPerTokenStored - rewardPerTokenPaid) / PRECISION
+          const PRECISION = new BN("1000000000000000000"); // 1e18 — must match on-chain
+          const diff = rewardPerTokenStored.sub(rewardPerTokenPaid);
+          const pending = new BN(balance).mul(diff).div(PRECISION).toNumber();
+          const unclaimed = pending + storedRewards;
+
+          totalUnclaimed += unclaimed;
+          totalEarnedVal += unclaimed;
         } catch {
-          // no yield account
+          // no yield vault for this asset
         }
       }
 
@@ -526,7 +571,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-xs text-muted-foreground">{t("dashboard.unclaimedYield")}</p>
               <p className="text-xl font-semibold text-success">
-                {formatCurrency(unclaimedYield / 1_000_000)}{" "}
+                {formatCurrency(unclaimedYield / 1_000_000_000)}{" "}
                 <span className="text-xs text-muted-foreground">USDC</span>
               </p>
             </div>
@@ -540,7 +585,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-xs text-muted-foreground">{t("dashboard.totalEarned")}</p>
               <p className="text-xl font-semibold text-foreground">
-                {formatCurrency(totalEarned / 1_000_000)}
+                {formatCurrency(totalEarned / 1_000_000_000)}
               </p>
             </div>
           </CardContent>
@@ -598,7 +643,9 @@ export default function DashboardPage() {
                     className="border-border hover:bg-secondary"
                   >
                     <TableCell className="text-sm text-foreground">
-                      {h.name}
+                      <Link href={`/assets/${h.mint}`} className="hover:text-gold underline-offset-4 hover:underline">
+                        {h.name}
+                      </Link>
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -680,6 +727,91 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Available Assets */}
+      {allAssets.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-base text-foreground flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-gold" />
+              {t("dashboard.availableAssets")}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">{t("dashboard.availableAssetsDesc")}</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {allAssets.map((asset) => {
+                const pricePerToken = asset.maxSupply > 0 ? asset.valuationUsd / asset.maxSupply : 0;
+                const held = holdings.find((h) => h.mint === asset.mint);
+                return (
+                  <Link key={asset.mint} href={`/assets/${asset.mint}`} className="block">
+                    <div className="rounded-lg border border-border bg-background p-4 hover:border-gold/40 transition-colors space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{asset.name}</p>
+                          <Badge variant="outline" className="border-gold/30 text-gold text-xs mt-1">
+                            {asset.symbol}
+                          </Badge>
+                        </div>
+                        {asset.isActive ? (
+                          <Badge className="bg-success/10 text-success border-0 text-xs">{t("common.active")}</Badge>
+                        ) : (
+                          <Badge className="bg-muted/10 text-muted-foreground border-0 text-xs">{t("common.inactive")}</Badge>
+                        )}
+                      </div>
+                      <Separator className="bg-border" />
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">{t("admin.valuation")}</p>
+                          <p className="font-mono text-foreground">{formatCurrency(asset.valuationUsd)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">{t("dashboard.pricePerToken")}</p>
+                          <p className="font-mono text-foreground">{formatCurrency(pricePerToken)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">{t("asset.tokensIssued")}</p>
+                          <p className="font-mono text-foreground">{formatNumber(asset.totalSupply)} / {formatNumber(asset.maxSupply)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">{t("dashboard.table.tokens")}</p>
+                          <p className="font-mono text-foreground">{held ? formatNumber(held.balance) : "—"}</p>
+                        </div>
+                      </div>
+                      {!held && kycStatus !== "verified" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full border-gold/30 text-gold hover:bg-gold/10 text-xs"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (!publicKey) return;
+                            const key = "sandyq-access-requests";
+                            const existing = JSON.parse(localStorage.getItem(key) || "[]");
+                            const already = existing.some((r: any) => r.wallet === publicKey.toBase58() && r.mint === asset.mint);
+                            if (!already) {
+                              existing.push({ wallet: publicKey.toBase58(), mint: asset.mint, assetName: asset.name, symbol: asset.symbol, timestamp: Date.now() });
+                              localStorage.setItem(key, JSON.stringify(existing));
+                            }
+                            toast.success(t("asset.requestSent"));
+                          }}
+                        >
+                          {t("dashboard.requestAccess")}
+                        </Button>
+                      )}
+                      {(held || kycStatus === "verified") && (
+                        <Button variant="outline" size="sm" className="w-full border-border text-muted-foreground hover:text-foreground text-xs">
+                          {t("dashboard.viewAsset")}
+                        </Button>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

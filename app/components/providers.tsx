@@ -7,7 +7,6 @@ import {
 } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import {
-  PhantomWalletAdapter,
   SolflareWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
 import { ThemeProvider } from "next-themes";
@@ -18,13 +17,14 @@ import { I18nProvider } from "@/lib/i18n";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
+  // Phantom is auto-detected as a Standard Wallet — no manual adapter needed
   const wallets = useMemo(
-    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
+    () => [new SolflareWalletAdapter()],
     []
   );
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
       <ConnectionProvider endpoint={CLUSTER_URL}>
         <WalletProvider wallets={wallets} autoConnect>
           <WalletModalProvider>

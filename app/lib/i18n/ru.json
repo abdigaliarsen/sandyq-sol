@@ -205,5 +205,17 @@
   "asset.table.hash": "Хеш",
   "asset.table.date": "Дата",
   "asset.table.verify": "Проверить",
-  "header.disconnectWallet": "Отключить кошелёк"
+  "header.disconnectWallet": "Отключить кошелёк",
+
+  "dashboard.availableAssets": "Доступные активы",
+  "dashboard.availableAssetsDesc": "Токенизированные активы на платформе",
+  "dashboard.noAssets": "Активы пока недоступны",
+  "dashboard.pricePerToken": "Цена / Токен",
+  "dashboard.viewAsset": "Подробнее",
+  "dashboard.requestAccess": "Запросить доступ",
+  "asset.requestAccess": "Запросить доступ",
+  "asset.requestAccessDesc": "Пройдите KYC-верификацию для инвестирования в этот актив. Свяжитесь с администратором для регистрации.",
+  "asset.requestSent": "Запрос на доступ отмечен. Свяжитесь с администратором актива для KYC-верификации.",
+  "asset.totalYield": "Чистая доходность",
+  "asset.tokensIssued": "Выпущено токенов"
 }

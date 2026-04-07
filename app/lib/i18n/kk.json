@@ -205,5 +205,17 @@
   "asset.table.hash": "Хеш",
   "asset.table.date": "Күні",
   "asset.table.verify": "Тексеру",
-  "header.disconnectWallet": "Әмиянды ажырату"
+  "header.disconnectWallet": "Әмиянды ажырату",
+
+  "dashboard.availableAssets": "Қолжетімді активтер",
+  "dashboard.availableAssetsDesc": "Платформадағы токенизацияланған активтер",
+  "dashboard.noAssets": "Активтер әлі қолжетімсіз",
+  "dashboard.pricePerToken": "Баға / Токен",
+  "dashboard.viewAsset": "Толығырақ",
+  "dashboard.requestAccess": "Қатынас сұрау",
+  "asset.requestAccess": "Қатынас сұрау",
+  "asset.requestAccessDesc": "Бұл активке инвестициялау үшін KYC верификациясынан өтіңіз. Тіркелу үшін әкімшіге хабарласыңыз.",
+  "asset.requestSent": "Қатынас сұрауы белгіленді. KYC верификациясы үшін актив әкімшісіне хабарласыңыз.",
+  "asset.totalYield": "Таза кіріс",
+  "asset.tokensIssued": "Шығарылған токендер"
 }
